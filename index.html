@@ -28,6 +28,15 @@
           <button id="importBtn" class="btn btn-outline" title="Import Backup" type="button"><span class="material-symbols-outlined">upload</span><span class="label">Import</span></button>
           <span id="backupStatus" class="small muted backup-status" role="status" aria-live="polite">No backup yet</span>
         </nav>
+        <div id="activeSessionIndicator" class="active-session-indicator" role="status" aria-live="polite">
+          <div class="indicator-body">
+            <span id="activeSessionIcon" class="material-symbols-outlined" aria-hidden="true">hourglass_empty</span>
+            <span id="activeSessionText">No active goal</span>
+          </div>
+          <button id="activeSessionStop" class="btn btn-danger" type="button" disabled title="Stop active goal">
+            <span class="material-symbols-outlined">stop</span><span class="label">Stop</span>
+          </button>
+        </div>
       </div>
     </header>
     <main id="content" class="container" role="main">
