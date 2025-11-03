@@ -1,11 +1,12 @@
 import { ACTIVE_SESSION_KEY, GOALS_KEY, SESSIONS_KEY } from './constants';
-import { appendSession, getActiveSession, getLastBackup, loadGoals, loadSessions, saveActiveSession, saveGoals, saveLastBackup } from './storage';
+import { appendSession, getActiveSession, getLastBackup, loadAchievements, loadGoals, loadSessions, saveAchievements, saveActiveSession, saveGoals, saveLastBackup } from './storage';
 import { formatDuration, formatHMS, hoursToMilliseconds, millisecondsToHours, estimateCompletion, validateDailyLimit, formatTimeSince } from './time';
 import { hideModal, showModal } from './ui/modals';
 import { GOAL_TEMPLATES } from './templates';
 import { renderProgressChart, renderAnalyticsCharts } from './charts';
+import { buildAchievementDefinitions, resolveAchievementDefinition, sortAchievements } from './achievements';
 import { requireElement, requireTemplate } from './dom';
-import type { Goal, GoalSession } from './types';
+import type { Goal, GoalSession, AchievementDefinition, AchievementRecord } from './types';
 
 interface ProgressCharts {
   resize?: () => void;
@@ -21,6 +22,7 @@ export class MasteryApp {
   private addTimeGoalId: string | null = null;
   private deleteGoalId: string | null = null;
   private backupStatusTimer: number | null = null;
+  private toastTimeout: number | null = null;
 
   private readonly goalsList = requireElement<HTMLDivElement>('goalsList');
   private readonly goalTemplate = requireTemplate('goalItemTmpl');
@@ -71,11 +73,21 @@ export class MasteryApp {
   };
 
   private readonly backupStatus = requireElement<HTMLSpanElement>('backupStatus');
+  private readonly achievementsModal = {
+    modal: requireElement<HTMLDivElement>('achievementsModal'),
+    list: requireElement<HTMLDivElement>('achievementsList'),
+    close: requireElement<HTMLButtonElement>('achievementsClose')
+  };
+  private readonly achievementToast = requireElement<HTMLDivElement>('achievementToast');
+
+  private achievements: AchievementRecord[] = [];
+  private achievementDefinitions: AchievementDefinition[] = [];
 
   private progressCharts: ProgressCharts = {};
   private analyticsCharts: AnalyticsCharts = {};
 
   constructor() {
+    this.achievements = loadAchievements();
     this.goals = loadGoals();
     this.restoreActiveSession();
     this.bindGlobalButtons();
@@ -84,17 +96,21 @@ export class MasteryApp {
     this.setupDeleteModal();
     this.setupProgressModal();
     this.setupAnalyticsModal();
+    this.setupAchievementsModal();
     this.setupBackupControls();
     this.setupPersistence();
     this.renderGoals();
     this.updateBackupStatus();
     this.startBackupStatusTimer();
+    this.evaluateAchievements(true);
   }
 
   private bindGlobalButtons(): void {
     requireElement<HTMLButtonElement>('openAddGoalFab').addEventListener('click', () => this.openAddGoalModal());
     const analyticsBtn = document.getElementById('openAnalyticsBtn');
     analyticsBtn?.addEventListener('click', () => this.openAnalytics());
+    const achievementsBtn = document.getElementById('openAchievementsBtn');
+    achievementsBtn?.addEventListener('click', () => this.openAchievements());
   }
 
   private setupBackupControls(): void {
@@ -224,6 +240,10 @@ export class MasteryApp {
       }
       this.analyticsCharts.resize = undefined;
     });
+  }
+
+  private setupAchievementsModal(): void {
+    this.achievementsModal.close.addEventListener('click', () => hideModal(this.achievementsModal.modal));
   }
 
   private restoreActiveSession(): void {
@@ -378,6 +398,11 @@ export class MasteryApp {
     }, 50);
   }
 
+  private openAchievements(): void {
+    this.renderAchievementsView();
+    showModal(this.achievementsModal.modal);
+  }
+
   private handleManualTimeSubmit(): void {
     if (!this.addTimeGoalId) return;
     const hours = Number(this.addTimeForm.hours.value);
@@ -413,6 +438,7 @@ export class MasteryApp {
 
     this.closeAddTimeModal();
     this.renderGoals();
+    this.evaluateAchievements(true);
   }
 
   private addGoal(title: string, totalHours: number, description: string): void {
@@ -484,6 +510,7 @@ export class MasteryApp {
     }
     saveActiveSession(null);
     this.renderGoals();
+    this.evaluateAchievements(changed);
   }
 
   private ensureTicker(): void {
@@ -564,6 +591,207 @@ export class MasteryApp {
     this.ensureTicker();
   }
 
+  private getAchievementDefinitionsForDisplay(): AchievementDefinition[] {
+    const definitions = [...this.achievementDefinitions];
+    const known = new Set(definitions.map((definition) => definition.id));
+    for (const record of this.achievements) {
+      if (!known.has(record.id)) {
+        const resolved = resolveAchievementDefinition(record.id);
+        if (resolved) {
+          definitions.push(resolved);
+          known.add(resolved.id);
+        }
+      }
+    }
+    return sortAchievements(definitions);
+  }
+
+  private renderAchievementsView(): void {
+    const list = this.achievementsModal.list;
+    const definitions = this.getAchievementDefinitionsForDisplay();
+    const recordsById = new Map(this.achievements.map((record) => [record.id, record]));
+    list.innerHTML = '';
+    const fragment = document.createDocumentFragment();
+    definitions.forEach((definition) => {
+      const record = recordsById.get(definition.id);
+      const card = document.createElement('div');
+      card.className = `achievement-card ${record ? 'unlocked' : 'locked'}`;
+      const status = record
+        ? `Unlocked ${new Date(record.unlockedAt).toLocaleDateString()}`
+        : 'Locked';
+      card.innerHTML = `
+        <div class="achievement-header">
+          <span class="achievement-icon" aria-hidden="true">${definition.category === 'streak' ? '🔥' : '⚡'}</span>
+          <div>
+            <strong>${definition.title}</strong>
+            <div class="achievement-status">${status}</div>
+          </div>
+        </div>
+        <p class="achievement-description">${definition.description}</p>
+      `;
+      fragment.appendChild(card);
+    });
+    list.appendChild(fragment);
+  }
+
+  private computeAchievementStats(sessions: GoalSession[]): { longestStreak: number; maxDailyHours: number } {
+    if (sessions.length === 0) {
+      return { longestStreak: 0, maxDailyHours: 0 };
+    }
+
+    const dayTotals = new Map<number, number>();
+    sessions.forEach((session) => {
+      const day = new Date(session.startTime);
+      day.setHours(0, 0, 0, 0);
+      const key = day.getTime();
+      const hours = millisecondsToHours(session.duration);
+      dayTotals.set(key, (dayTotals.get(key) ?? 0) + hours);
+    });
+
+    const sortedDays = Array.from(dayTotals.keys()).sort((a, b) => a - b);
+    const DAY_MS = 86_400_000;
+    const DST_FLEX = 3_600_000;
+    let longest = 0;
+    let current = 0;
+    let previous: number | null = null;
+    for (const dayMs of sortedDays) {
+      if (previous === null) {
+        current = 1;
+      } else {
+        const diff = dayMs - previous;
+        if (diff >= DAY_MS - DST_FLEX && diff <= DAY_MS + DST_FLEX) {
+          current += 1;
+        } else if (dayMs !== previous) {
+          current = 1;
+        }
+      }
+      longest = Math.max(longest, current);
+      previous = dayMs;
+    }
+    if (longest === 0 && sortedDays.length > 0) {
+      longest = 1;
+    }
+
+    let maxHours = 0;
+    dayTotals.forEach((hours) => {
+      if (hours > maxHours) {
+        maxHours = hours;
+      }
+    });
+
+    return { longestStreak: longest, maxDailyHours: maxHours };
+  }
+
+  private evaluateAchievements(notify: boolean): void {
+    const sessions = loadSessions();
+    const stats = this.computeAchievementStats(sessions);
+    const definitions = buildAchievementDefinitions(stats.longestStreak);
+    const definitionMap = new Map<string, AchievementDefinition>();
+    definitions.forEach((def) => definitionMap.set(def.id, def));
+
+    const records = [...this.achievements];
+    const recordMap = new Map<string, AchievementRecord>();
+    records.forEach((record) => recordMap.set(record.id, record));
+
+    const meetsThreshold = (definition: AchievementDefinition): boolean => {
+      if (definition.category === 'streak') {
+        return stats.longestStreak >= definition.threshold;
+      }
+      return stats.maxDailyHours >= definition.threshold;
+    };
+
+    const newlyUnlocked: AchievementRecord[] = [];
+    definitions.forEach((definition) => {
+      if (!recordMap.has(definition.id) && meetsThreshold(definition)) {
+        const record: AchievementRecord = {
+          id: definition.id,
+          unlockedAt: Date.now(),
+          seen: false
+        };
+        records.push(record);
+        recordMap.set(definition.id, record);
+        newlyUnlocked.push(record);
+      }
+    });
+
+    // Ensure we can render any previously unlocked achievement even if not part of the base set.
+    for (const record of records) {
+      if (!definitionMap.has(record.id)) {
+        const resolved = resolveAchievementDefinition(record.id);
+        if (resolved) {
+          definitionMap.set(resolved.id, resolved);
+        }
+      }
+    }
+
+    this.achievementDefinitions = Array.from(definitionMap.values());
+    this.achievements = records;
+    saveAchievements(records);
+
+    if (notify) {
+      const unseen = records.filter((record) => !record.seen);
+      const unseenDefinitions = unseen
+        .map((record) => definitionMap.get(record.id) ?? resolveAchievementDefinition(record.id))
+        .filter((definition): definition is AchievementDefinition => Boolean(definition));
+
+      if (unseenDefinitions.length > 0) {
+        this.showAchievementCelebration(unseenDefinitions);
+        unseen.forEach((record) => {
+          record.seen = true;
+        });
+        saveAchievements(records);
+      }
+    }
+
+    this.renderAchievementsView();
+  }
+
+  private showAchievementCelebration(definitions: AchievementDefinition[]): void {
+    if (definitions.length === 0) return;
+    const toast = this.achievementToast;
+    const items = definitions
+      .map(
+        (definition) =>
+          `<li><strong>${definition.title}</strong><span>${definition.description}</span></li>`
+      )
+      .join('');
+    toast.innerHTML = `
+      <div class="achievement-toast-content">
+        <h3>${definitions.length > 1 ? 'New Achievements!' : 'New Achievement!'}</h3>
+        <ul>${items}</ul>
+        <button type="button" class="toast-close">Nice!</button>
+      </div>
+    `;
+    toast.classList.add('visible');
+
+    const clearContent = () => {
+      toast.classList.remove('visible');
+      window.setTimeout(() => {
+        toast.innerHTML = '';
+      }, 250);
+    };
+
+    const cancelTimeout = () => {
+      if (this.toastTimeout !== null) {
+        window.clearTimeout(this.toastTimeout);
+        this.toastTimeout = null;
+      }
+    };
+
+    const hide = () => {
+      cancelTimeout();
+      clearContent();
+    };
+
+    cancelTimeout();
+    const closeButton = toast.querySelector<HTMLButtonElement>('.toast-close');
+    closeButton?.addEventListener('click', hide, { once: true });
+    this.toastTimeout = window.setTimeout(() => {
+      this.toastTimeout = null;
+      clearContent();
+    }, 6000);
+  }
+
   private exportBackup(): void {
     const payload = {
       version: 1,
@@ -617,6 +845,7 @@ export class MasteryApp {
       }
       this.goals = loadGoals();
       this.renderGoals();
+      this.evaluateAchievements(false);
       saveLastBackup(Date.now());
       this.updateBackupStatus();
       alert('Backup imported successfully.');

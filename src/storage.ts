@@ -1,5 +1,5 @@
-import { ACTIVE_SESSION_KEY, GOALS_KEY, LAST_BACKUP_KEY, SESSIONS_KEY } from './constants';
-import type { ActiveSession, Goal, GoalSession } from './types';
+import { ACHIEVEMENTS_KEY, ACTIVE_SESSION_KEY, GOALS_KEY, LAST_BACKUP_KEY, SESSIONS_KEY } from './constants';
+import type { ActiveSession, Goal, GoalSession, AchievementRecord } from './types';
 
 const DEFAULT_TOTAL_HOURS = 60;
 
@@ -108,4 +108,26 @@ export function getLastBackup(): number | null {
   if (!raw) return null;
   const value = Number(raw);
   return Number.isFinite(value) ? value : null;
+}
+
+export function loadAchievements(): AchievementRecord[] {
+  try {
+    const raw = localStorage.getItem(ACHIEVEMENTS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((value) => ({
+        id: String(value?.id ?? ''),
+        unlockedAt: Number(value?.unlockedAt ?? Date.now()),
+        seen: Boolean(value?.seen)
+      }))
+      .filter((record) => record.id);
+  } catch {
+    return [];
+  }
+}
+
+export function saveAchievements(records: AchievementRecord[]): void {
+  localStorage.setItem(ACHIEVEMENTS_KEY, JSON.stringify(records));
 }

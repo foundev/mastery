@@ -1,18 +1,20 @@
 import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest';
 import { MasteryApp } from '../app';
-import { GOALS_KEY, SESSIONS_KEY, ACTIVE_SESSION_KEY, LAST_BACKUP_KEY } from '../constants';
+import { GOALS_KEY, SESSIONS_KEY, ACTIVE_SESSION_KEY, LAST_BACKUP_KEY, ACHIEVEMENTS_KEY } from '../constants';
 import { hoursToMilliseconds } from '../time';
 
 const TEMPLATE_HTML = `
   <header class="appbar">
     <nav>
       <button id="openAnalyticsBtn" type="button"></button>
+      <button id="openAchievementsBtn" type="button"></button>
       <button id="exportBtn" type="button"></button>
       <input id="importInput" type="file" />
       <button id="importBtn" type="button"></button>
       <span id="backupStatus">No backup yet</span>
     </nav>
   </header>
+  <div id="achievementToast"></div>
   <button id="openAddGoalFab" type="button"></button>
   <main>
     <div id="goalsList"></div>
@@ -70,6 +72,12 @@ const TEMPLATE_HTML = `
       <div id="an_trend"></div>
       <div id="an_pie"></div>
       <button id="an_close" type="button"></button>
+    </div>
+  </div>
+  <div id="achievementsModal" class="modal-backdrop" aria-hidden="true">
+    <div class="modal">
+      <div id="achievementsList"></div>
+      <button id="achievementsClose" type="button"></button>
     </div>
   </div>
   <div id="deleteModal" class="modal-backdrop" aria-hidden="true">
@@ -231,4 +239,69 @@ describe('MasteryApp integration', () => {
     const liveText = document.querySelector('.liveTimer')?.textContent;
     expect(liveText).not.toBe('00:00:00');
   });
+
+  it('unlocks hourly achievements and shows toast', () => {
+    const goal = {
+      id: 'goal-1',
+      title: 'Daily Focus',
+      description: '',
+      totalHours: 100,
+      totalTimeSpent: 0,
+      isActive: false,
+      createdAt: Date.now()
+    };
+    window.localStorage.setItem(GOALS_KEY, JSON.stringify([goal]));
+    window.localStorage.setItem(SESSIONS_KEY, JSON.stringify([]));
+    new MasteryApp();
+
+    click('.addTimeBtn');
+    inputValue('#atm_hours', '2');
+    click('#atm_submit');
+
+    const toast = document.getElementById('achievementToast');
+    expect(toast?.classList.contains('visible')).toBe(true);
+
+    const storedRaw = window.localStorage.getItem(ACHIEVEMENTS_KEY);
+    expect(storedRaw).not.toBeNull();
+    const stored = JSON.parse(storedRaw ?? '[]');
+    const hoursAchievement = stored.find((record: any) => record.id === 'hours-1');
+    expect(hoursAchievement).toBeTruthy();
+    expect(hoursAchievement.seen).toBe(true);
+  });
+
+  it('only announces streak achievements once', () => {
+    const sessions: any[] = [];
+    const base = Date.UTC(2024, 4, 20);
+    for (let i = 0; i < 90; i++) {
+      const start = base - i * 24 * 60 * 60 * 1000;
+      sessions.push({
+        goalId: 'goal-1',
+        startTime: start,
+        endTime: start + 60 * 60 * 1000,
+        duration: 60 * 60 * 1000
+      });
+    }
+    window.localStorage.setItem(GOALS_KEY, JSON.stringify([]));
+    window.localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+
+    new MasteryApp();
+    const toast = document.getElementById('achievementToast');
+    expect(toast?.classList.contains('visible')).toBe(true);
+    toast?.querySelector<HTMLButtonElement>('.toast-close')?.click();
+    vi.runOnlyPendingTimers();
+
+    const storedRaw = window.localStorage.getItem(ACHIEVEMENTS_KEY);
+    expect(storedRaw).not.toBeNull();
+    const stored = JSON.parse(storedRaw ?? '[]');
+    const ids = stored.map((record: any) => record.id);
+    expect(ids).toContain('streak-90');
+    const streak90 = stored.find((record: any) => record.id === 'streak-90');
+    expect(streak90?.seen).toBe(true);
+
+    document.body.innerHTML = TEMPLATE_HTML;
+    new MasteryApp();
+    const toastAgain = document.getElementById('achievementToast');
+    expect(toastAgain?.classList.contains('visible')).toBe(false);
+  });
+
 });

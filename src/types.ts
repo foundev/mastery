@@ -35,3 +35,19 @@ export interface DailyLimitValidation {
   ok: boolean;
   message?: string;
 }
+
+export type AchievementCategory = 'streak' | 'daily-hours';
+
+export interface AchievementDefinition {
+  id: string;
+  title: string;
+  description: string;
+  category: AchievementCategory;
+  threshold: number;
+}
+
+export interface AchievementRecord {
+  id: string;
+  unlockedAt: number;
+  seen: boolean;
+}
