@@ -48,6 +48,8 @@ export interface AchievementDefinition {
 
 export interface AchievementRecord {
   id: string;
+  goalId: string;
+  goalTitle?: string;
   unlockedAt: number;
   seen: boolean;
 }

@@ -479,6 +479,34 @@ header.appbar nav .backup-status { margin-left: auto; font-size: 12px; color: va
 }
 
 
+.achievement-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.achievement-controls select {
+  flex: 1 1 auto;
+}
+
+.achievements-list {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.achievement-section h4 {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+
+.achievement-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .achievements-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

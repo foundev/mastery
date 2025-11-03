@@ -76,6 +76,8 @@ const TEMPLATE_HTML = `
   </div>
   <div id="achievementsModal" class="modal-backdrop" aria-hidden="true">
     <div class="modal">
+      <select id="achievementsFilter"></select>
+      <div id="achievementsEmpty"></div>
       <div id="achievementsList"></div>
       <button id="achievementsClose" type="button"></button>
     </div>
@@ -266,6 +268,8 @@ describe('MasteryApp integration', () => {
     const stored = JSON.parse(storedRaw ?? '[]');
     const hoursAchievement = stored.find((record: any) => record.id === 'hours-1');
     expect(hoursAchievement).toBeTruthy();
+    expect(hoursAchievement.goalId).toBe(goal.id);
+    expect(hoursAchievement.goalTitle).toBe(goal.title);
     expect(hoursAchievement.seen).toBe(true);
   });
 
@@ -297,6 +301,8 @@ describe('MasteryApp integration', () => {
     expect(ids).toContain('streak-90');
     const streak90 = stored.find((record: any) => record.id === 'streak-90');
     expect(streak90?.seen).toBe(true);
+    expect(streak90?.goalId).toBe('goal-1');
+    expect(streak90?.goalTitle).toBe('goal-1');
 
     document.body.innerHTML = TEMPLATE_HTML;
     new MasteryApp();

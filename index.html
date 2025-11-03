@@ -151,7 +151,16 @@
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="achievementsTitle" style="width:min(900px,96vw)">
         <header><h3 id="achievementsTitle">Achievements</h3></header>
         <main>
-          <div id="achievementsList" class="achievements-grid"></div>
+          <div class="achievement-controls">
+            <label for="achievementsFilter" class="small muted">Goal</label>
+            <select id="achievementsFilter">
+              <option value="all">All goals</option>
+            </select>
+          </div>
+          <div id="achievementsEmpty" class="small muted" style="display:none;">
+            No awards yet. Track time on your goals to start unlocking achievements.
+          </div>
+          <div id="achievementsList" class="achievements-list"></div>
         </main>
         <footer>
           <button id="achievementsClose" type="button">Close</button>

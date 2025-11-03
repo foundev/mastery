@@ -1,4 +1,11 @@
-import { ACHIEVEMENTS_KEY, ACTIVE_SESSION_KEY, GOALS_KEY, LAST_BACKUP_KEY, SESSIONS_KEY } from './constants';
+import {
+  ACHIEVEMENTS_KEY,
+  ACTIVE_SESSION_KEY,
+  GOALS_KEY,
+  LAST_BACKUP_KEY,
+  LEGACY_GLOBAL_ACHIEVEMENT_GOAL_ID,
+  SESSIONS_KEY
+} from './constants';
 import type { ActiveSession, Goal, GoalSession, AchievementRecord } from './types';
 
 const DEFAULT_TOTAL_HOURS = 60;
@@ -117,12 +124,30 @@ export function loadAchievements(): AchievementRecord[] {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
     return parsed
-      .map((value) => ({
-        id: String(value?.id ?? ''),
-        unlockedAt: Number(value?.unlockedAt ?? Date.now()),
-        seen: Boolean(value?.seen)
-      }))
-      .filter((record) => record.id);
+      .map((value) => {
+        const id = String(value?.id ?? '');
+        if (!id) return null;
+        const rawGoalId = value?.goalId;
+        const goalId =
+          typeof rawGoalId === 'string' && rawGoalId.trim().length > 0
+            ? rawGoalId
+            : LEGACY_GLOBAL_ACHIEVEMENT_GOAL_ID;
+        if (!goalId) return null;
+        const unlockedAtRaw = Number(value?.unlockedAt ?? Date.now());
+        const unlockedAt = isNumber(unlockedAtRaw) ? unlockedAtRaw : Date.now();
+        const goalTitle =
+          typeof value?.goalTitle === 'string' && value.goalTitle.trim().length > 0
+            ? value.goalTitle
+            : undefined;
+        return {
+          id,
+          goalId,
+          goalTitle,
+          unlockedAt,
+          seen: Boolean(value?.seen)
+        } satisfies AchievementRecord;
+      })
+      .filter((record): record is AchievementRecord => Boolean(record?.id && record.goalId));
   } catch {
     return [];
   }
