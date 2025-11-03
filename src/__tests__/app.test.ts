@@ -1,15 +1,19 @@
 import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest';
 import { MasteryApp } from '../app';
-import { GOALS_KEY, SESSIONS_KEY, ACTIVE_SESSION_KEY } from '../constants';
+import { GOALS_KEY, SESSIONS_KEY, ACTIVE_SESSION_KEY, LAST_BACKUP_KEY } from '../constants';
 import { hoursToMilliseconds } from '../time';
 
 const TEMPLATE_HTML = `
+  <header class="appbar">
+    <nav>
+      <button id="openAnalyticsBtn" type="button"></button>
+      <button id="exportBtn" type="button"></button>
+      <input id="importInput" type="file" />
+      <button id="importBtn" type="button"></button>
+      <span id="backupStatus">No backup yet</span>
+    </nav>
+  </header>
   <button id="openAddGoalFab" type="button"></button>
-  <button id="openAddGoalToolbar" type="button"></button>
-  <button id="openAnalyticsBtn" type="button"></button>
-  <button id="exportBtn" type="button"></button>
-  <input id="importInput" type="file" />
-  <button id="importBtn" type="button"></button>
   <main>
     <div id="goalsList"></div>
   </main>
@@ -128,6 +132,7 @@ describe('MasteryApp integration', () => {
     window.localStorage.setItem(GOALS_KEY, JSON.stringify([storedGoal]));
     new MasteryApp();
     const items = document.querySelectorAll('.goal');
+    expect(document.getElementById('backupStatus')?.textContent).toBe('No backup yet');
     expect(items.length).toBe(1);
     expect(items[0].querySelector('h3')?.textContent).toBe('Stored Goal');
   });
@@ -192,6 +197,19 @@ describe('MasteryApp integration', () => {
     expect(updatedGoals[0].totalTimeSpent).toBe(hoursToMilliseconds(1.5));
     const sessions = JSON.parse(window.localStorage.getItem(SESSIONS_KEY) ?? '[]');
     expect(sessions.length).toBe(1);
+  });
+
+  it('updates backup timestamp after exporting data', () => {
+    window.localStorage.setItem(GOALS_KEY, JSON.stringify([]));
+    window.localStorage.setItem(SESSIONS_KEY, JSON.stringify([]));
+    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    new MasteryApp();
+    click('#exportBtn');
+    anchorClick.mockRestore();
+    const saved = window.localStorage.getItem(LAST_BACKUP_KEY);
+    expect(saved).not.toBeNull();
+    const statusText = document.getElementById('backupStatus')?.textContent ?? '';
+    expect(statusText).toMatch(/Last backup:/);
   });
 
   it('restarts ticker when goal already active from storage', () => {

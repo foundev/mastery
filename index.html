@@ -20,11 +20,12 @@
           <span class="material-symbols-outlined" aria-hidden="true">track_changes</span>
           <h1 style="font-size:18px;margin:0;">Mastery</h1>
         </div>
-        <nav aria-label="Top toolbar" style="display:flex;gap:8px;">
+        <nav aria-label="Top toolbar">
           <button id="openAnalyticsBtn" class="btn btn-outline" title="Open Analytics" type="button"><span class="material-symbols-outlined">analytics</span><span class="label">Analytics</span></button>
           <button id="exportBtn" class="btn btn-outline" title="Export Backup" type="button"><span class="material-symbols-outlined">download</span><span class="label">Export</span></button>
           <input id="importInput" type="file" accept="application/json" style="display:none" />
           <button id="importBtn" class="btn btn-outline" title="Import Backup" type="button"><span class="material-symbols-outlined">upload</span><span class="label">Import</span></button>
+          <span id="backupStatus" class="small muted backup-status" role="status" aria-live="polite">No backup yet</span>
           </nav>
       </div>
     </header>

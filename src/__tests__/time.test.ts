@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import type { Goal, GoalSession } from '../types';
-import { estimateCompletion, formatDuration, formatHMS, hoursToMilliseconds, validateDailyLimit } from '../time';
+import { estimateCompletion, formatDuration, formatHMS, hoursToMilliseconds, validateDailyLimit, formatTimeSince } from '../time';
 
 describe('time helpers', () => {
   afterEach(() => {
@@ -39,6 +39,16 @@ describe('time helpers', () => {
     ];
     const result = validateDailyLimit(sessions, 2, new Date(base));
     expect(result.ok).toBe(true);
+  });
+
+  it('formats relative time strings', () => {
+    vi.useFakeTimers();
+    const now = new Date('2024-05-20T12:00:00Z');
+    vi.setSystemTime(now);
+    expect(formatTimeSince(Date.now() - 30 * 1000)).toBe('Moments ago');
+    expect(formatTimeSince(Date.now() - 5 * 60 * 1000)).toBe('5 minutes ago');
+    expect(formatTimeSince(Date.now() - 2 * 60 * 60 * 1000)).toBe('2 hours ago');
+    vi.useRealTimers();
   });
 
   it('estimates completion date based on median recent effort', () => {

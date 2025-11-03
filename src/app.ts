@@ -1,6 +1,6 @@
 import { ACTIVE_SESSION_KEY, GOALS_KEY, SESSIONS_KEY } from './constants';
-import { appendSession, getActiveSession, loadGoals, loadSessions, saveActiveSession, saveGoals } from './storage';
-import { formatDuration, formatHMS, hoursToMilliseconds, millisecondsToHours, estimateCompletion, validateDailyLimit } from './time';
+import { appendSession, getActiveSession, getLastBackup, loadGoals, loadSessions, saveActiveSession, saveGoals, saveLastBackup } from './storage';
+import { formatDuration, formatHMS, hoursToMilliseconds, millisecondsToHours, estimateCompletion, validateDailyLimit, formatTimeSince } from './time';
 import { hideModal, showModal } from './ui/modals';
 import { GOAL_TEMPLATES } from './templates';
 import { renderProgressChart, renderAnalyticsCharts } from './charts';
@@ -20,6 +20,7 @@ export class MasteryApp {
   private tickHandle: number | null = null;
   private addTimeGoalId: string | null = null;
   private deleteGoalId: string | null = null;
+  private backupStatusTimer: number | null = null;
 
   private readonly goalsList = requireElement<HTMLDivElement>('goalsList');
   private readonly goalTemplate = requireTemplate('goalItemTmpl');
@@ -69,6 +70,8 @@ export class MasteryApp {
     cancel: requireElement<HTMLButtonElement>('del_cancel')
   };
 
+  private readonly backupStatus = requireElement<HTMLSpanElement>('backupStatus');
+
   private progressCharts: ProgressCharts = {};
   private analyticsCharts: AnalyticsCharts = {};
 
@@ -84,6 +87,8 @@ export class MasteryApp {
     this.setupBackupControls();
     this.setupPersistence();
     this.renderGoals();
+    this.updateBackupStatus();
+    this.startBackupStatusTimer();
   }
 
   private bindGlobalButtons(): void {
@@ -113,6 +118,22 @@ export class MasteryApp {
         }
       });
     }
+  }
+
+  private updateBackupStatus(): void {
+    const last = getLastBackup();
+    if (last) {
+      this.backupStatus.textContent = `Last backup: ${formatTimeSince(last)}`;
+    } else {
+      this.backupStatus.textContent = 'No backup yet';
+    }
+  }
+
+  private startBackupStatusTimer(): void {
+    if (this.backupStatusTimer !== null) {
+      window.clearInterval(this.backupStatusTimer);
+    }
+    this.backupStatusTimer = window.setInterval(() => this.updateBackupStatus(), 60_000);
   }
 
   private setupPersistence(): void {
@@ -564,6 +585,8 @@ export class MasteryApp {
       URL.revokeObjectURL(url);
       anchor.remove();
     }, 0);
+    saveLastBackup(Date.now());
+    this.updateBackupStatus();
   }
 
   private importBackup(jsonText: string): void {
@@ -594,6 +617,8 @@ export class MasteryApp {
       }
       this.goals = loadGoals();
       this.renderGoals();
+      saveLastBackup(Date.now());
+      this.updateBackupStatus();
       alert('Backup imported successfully.');
     } catch {
       alert('Invalid JSON backup.');

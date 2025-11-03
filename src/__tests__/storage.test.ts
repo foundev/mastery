@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   appendSession,
   getActiveSession,
+  getLastBackup,
   loadGoals,
   loadSessions,
   saveActiveSession,
   saveGoals,
+  saveLastBackup,
   saveSessions
 } from '../storage';
 import type { Goal, GoalSession } from '../types';
@@ -93,5 +95,11 @@ describe('storage helpers', () => {
     saveActiveSession(null);
     expect(getActiveSession()).toBeNull();
     expect(window.localStorage.getItem(ACTIVE_SESSION_KEY)).toBeNull();
+  });
+
+  it('stores and retrieves last backup timestamp', () => {
+    expect(getLastBackup()).toBeNull();
+    saveLastBackup(123456);
+    expect(getLastBackup()).toBe(123456);
   });
 });

@@ -1,4 +1,4 @@
-import { ACTIVE_SESSION_KEY, GOALS_KEY, SESSIONS_KEY } from './constants';
+import { ACTIVE_SESSION_KEY, GOALS_KEY, LAST_BACKUP_KEY, SESSIONS_KEY } from './constants';
 import type { ActiveSession, Goal, GoalSession } from './types';
 
 const DEFAULT_TOTAL_HOURS = 60;
@@ -97,4 +97,15 @@ export function getActiveSession(): ActiveSession | null {
   } catch {
     return null;
   }
+}
+
+export function saveLastBackup(timestamp: number): void {
+  localStorage.setItem(LAST_BACKUP_KEY, String(timestamp));
+}
+
+export function getLastBackup(): number | null {
+  const raw = localStorage.getItem(LAST_BACKUP_KEY);
+  if (!raw) return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
 }
