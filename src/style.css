@@ -35,51 +35,54 @@ header.appbar nav { display: flex; gap: 8px; align-items: center; flex-wrap: wra
 header.appbar nav .backup-status { margin-left: auto; font-size: 12px; color: var(--muted); white-space: nowrap; }
 
 .active-session-indicator {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 14px;
-  margin: 12px auto 0;
-  padding: 12px 18px;
+  gap: 6px;
+  padding: 6px 10px;
   border-radius: 999px;
-  border: 1px solid var(--border);
-  background: color-mix(in oklab, var(--panel) 88%, var(--bg) 12%);
-  max-width: min(520px, 100%);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
-  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  border: 1px solid color-mix(in oklab, var(--border) 70%, var(--primary) 30%);
+  background: color-mix(in oklab, var(--panel) 90%, var(--bg) 10%);
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
-.active-session-indicator .indicator-body {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 14px;
-}
-
-.active-session-indicator .indicator-body .material-symbols-outlined {
-  font-size: 22px;
+.active-session-indicator .material-symbols-outlined {
+  font-size: 18px;
 }
 
 .active-session-indicator.has-active {
-  border-color: color-mix(in oklab, var(--border) 55%, var(--primary) 45%);
+  border-color: var(--primary);
   background: color-mix(in oklab, var(--panel) 92%, var(--primary) 8%);
+  color: var(--primary-contrast);
 }
 
-.active-session-indicator:not(.has-active) {
-  opacity: 0.85;
+.active-session-indicator.has-active .material-symbols-outlined {
+  color: var(--primary-contrast);
 }
 
-.active-session-indicator .btn {
-  padding: 8px 12px;
-  min-width: 80px;
+.indicator-stop {
+  border: none;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
 }
 
-.active-session-indicator .btn:disabled {
+.indicator-stop:disabled {
   opacity: 0.4;
+  cursor: default;
 }
 
-header.appbar nav + .active-session-indicator {
-  margin-top: 12px;
+.indicator-stop .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.indicator-stop-label {
+  display: none;
 }
 
       .subtitle { margin: 6px 0 20px; color: var(--muted); }
@@ -248,13 +251,9 @@ header.appbar nav + .active-session-indicator {
     margin-top: 6px;
   }
   #activeSessionIndicator {
-    gap: 10px;
-    padding: 12px 14px;
-  }
-  #activeSessionIndicator .indicator-body {
+    margin-top: 8px;
     width: 100%;
     justify-content: center;
-    text-align: center;
   }
   .container {
     padding: 16px 12px 88px;
@@ -311,9 +310,6 @@ header.appbar nav + .active-session-indicator {
   }
   header.appbar nav .backup-status {
     font-size: 11px;
-  }
-  #activeSessionIndicator .btn .label {
-    display: none;
   }
   .controls .btn .label {
     display: none;
