@@ -79,6 +79,10 @@ export class MasteryApp {
     close: requireElement<HTMLButtonElement>('achievementsClose')
   };
   private readonly achievementToast = requireElement<HTMLDivElement>('achievementToast');
+  private readonly activeSessionIndicator = requireElement<HTMLDivElement>('activeSessionIndicator');
+  private readonly activeSessionIcon = requireElement<HTMLSpanElement>('activeSessionIcon');
+  private readonly activeSessionText = requireElement<HTMLSpanElement>('activeSessionText');
+  private readonly activeSessionStop = requireElement<HTMLButtonElement>('activeSessionStop');
 
   private achievements: AchievementRecord[] = [];
   private achievementDefinitions: AchievementDefinition[] = [];
@@ -97,6 +101,7 @@ export class MasteryApp {
     this.setupProgressModal();
     this.setupAnalyticsModal();
     this.setupAchievementsModal();
+    this.setupActiveSessionControls();
     this.setupBackupControls();
     this.setupPersistence();
     this.renderGoals();
@@ -244,6 +249,10 @@ export class MasteryApp {
 
   private setupAchievementsModal(): void {
     this.achievementsModal.close.addEventListener('click', () => hideModal(this.achievementsModal.modal));
+  }
+
+  private setupActiveSessionControls(): void {
+    this.activeSessionStop.addEventListener('click', () => this.stopGoal());
   }
 
   private restoreActiveSession(): void {
