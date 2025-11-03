@@ -51,6 +51,7 @@ header.appbar nav .backup-status { margin-left: auto; font-size: 12px; color: va
       .btn:disabled { opacity: .6; cursor: not-allowed; }
       .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
       .goal {
+  position: relative;
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 12px;
@@ -63,10 +64,23 @@ header.appbar nav .backup-status { margin-left: auto; font-size: 12px; color: va
   transition: border-color 0.15s ease, box-shadow 0.2s ease, transform 0.2s ease;
   box-sizing: border-box;
 }
-.goal:hover {
+.goal:hover, .goal.active {
   border-color: color-mix(in oklab, var(--border) 60%, var(--primary) 40%);
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.25);
   transform: translateY(-2px);
+}
+.goal.active::after {
+  content: 'In progress';
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: var(--primary);
+  color: var(--primary-contrast);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 999px;
 }
 .goal:focus-within {
   border-color: var(--primary);
