@@ -88,8 +88,6 @@ export class MasteryApp {
 
   private bindGlobalButtons(): void {
     requireElement<HTMLButtonElement>('openAddGoalFab').addEventListener('click', () => this.openAddGoalModal());
-    const toolbarAdd = document.getElementById('openAddGoalToolbar');
-    toolbarAdd?.addEventListener('click', () => this.openAddGoalModal());
     const analyticsBtn = document.getElementById('openAnalyticsBtn');
     analyticsBtn?.addEventListener('click', () => this.openAnalytics());
   }
