@@ -69,3 +69,80 @@ export const storage = {
     }
   },
 };
+
+const BACKUP_VERSION = 1 as const;
+
+type ActiveSessionBackup = { goalId: string; startTime: number; lastUpdated?: number } | null;
+type BackupPayload = {
+  version: number;
+  exportedAt: number;
+  goals: Goal[];
+  sessions: TimeSession[];
+  activeSession: ActiveSessionBackup;
+};
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isValidActiveSession(value: unknown): value is Exclude<ActiveSessionBackup, null> {
+  if (!isObject(value)) return false;
+  const goalId = (value as Record<string, unknown>).goalId;
+  const startTime = (value as Record<string, unknown>).startTime;
+  const lastUpdated = (value as Record<string, unknown>).lastUpdated;
+  const goalIdOk = typeof goalId === 'string' && goalId.length > 0;
+  const startTimeOk = typeof startTime === 'number' && Number.isFinite(startTime);
+  const lastUpdatedOk = typeof lastUpdated === 'undefined' || (typeof lastUpdated === 'number' && Number.isFinite(lastUpdated));
+  return goalIdOk && startTimeOk && lastUpdatedOk;
+}
+
+export function exportAll(): string {
+  const payload: BackupPayload = {
+    version: BACKUP_VERSION,
+    exportedAt: Date.now(),
+    goals: storage.getGoals(),
+    sessions: storage.getSessions(),
+    activeSession: storage.getActiveSession(),
+  };
+  return JSON.stringify(payload);
+}
+
+export function importAll(json: string): { ok: true } | { ok: false; error: string } {
+  try {
+    const parsed = JSON.parse(json) as Partial<BackupPayload> | unknown;
+    if (!isObject(parsed)) {
+      return { ok: false, error: 'Invalid backup file format' };
+    }
+
+    const version = (parsed as Record<string, unknown>).version;
+    if (typeof version !== 'number') {
+      return { ok: false, error: 'Backup missing version' };
+    }
+
+    // Basic forward compatibility: accept same or lower major version
+    if (Math.floor(version) > Math.floor(BACKUP_VERSION)) {
+      return { ok: false, error: 'Backup version is newer than this app supports' };
+    }
+
+    const goals = (parsed as Record<string, unknown>).goals;
+    const sessions = (parsed as Record<string, unknown>).sessions;
+    const activeSession = (parsed as Record<string, unknown>).activeSession as unknown;
+
+    if (!Array.isArray(goals) || !Array.isArray(sessions)) {
+      return { ok: false, error: 'Backup missing goals or sessions arrays' };
+    }
+
+    if (!(activeSession === null || isValidActiveSession(activeSession))) {
+      return { ok: false, error: 'Backup active session is invalid' };
+    }
+
+    // Write to storage
+    storage.saveGoals(goals as Goal[]);
+    storage.saveSessions(sessions as TimeSession[]);
+    storage.saveActiveSession((activeSession as ActiveSessionBackup) ?? null);
+
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: 'Failed to parse backup JSON' };
+  }
+}
