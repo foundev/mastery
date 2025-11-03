@@ -468,9 +468,15 @@ export class MasteryApp {
 
   private startGoal(goalId: string): void {
     // ensure only one session running
-    this.stopGoal();
+    const active = this.goals.find((g) => g.isActive);
+    if (active && active.id !== goalId) {
+      return;
+    }
+    if (active && active.id === goalId) {
+      return;
+    }
     const goal = this.goals.find((g) => g.id === goalId);
-    if (!goal || goal.isActive) return;
+    if (!goal) return;
     goal.isActive = true;
     goal.startTime = Date.now();
     saveGoals(this.goals);
@@ -566,8 +572,12 @@ export class MasteryApp {
           ? formatHMS((Date.now() - goal.startTime) / 1000)
           : '00:00:00';
 
-      startBtn.disabled = goal.isActive;
+      startBtn.disabled = goal.isActive || this.goals.some((g) => g.isActive && g.id !== goal.id);
       stopBtn.disabled = !goal.isActive;
+
+      if (goal.isActive) {
+        root.classList.add('active');
+      }
 
       const ariaProgress = root.querySelector('.progress') as HTMLElement | null;
       if (ariaProgress) {
