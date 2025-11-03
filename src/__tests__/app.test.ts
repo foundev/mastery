@@ -14,13 +14,6 @@ const TEMPLATE_HTML = `
       <span id="backupStatus">No backup yet</span>
     </nav>
   </header>
-  <div id="activeSessionIndicator">
-    <div class="indicator-body">
-      <span id="activeSessionIcon"></span>
-      <span id="activeSessionText">No active goal</span>
-    </div>
-    <button id="activeSessionStop" type="button" disabled></button>
-  </div>
   <div id="achievementToast"></div>
   <button id="openAddGoalFab" type="button"></button>
   <main>
@@ -150,8 +143,6 @@ describe('MasteryApp integration', () => {
     expect(document.getElementById('backupStatus')?.textContent).toBe('No backup yet');
     expect(items.length).toBe(1);
     expect(items[0].querySelector('h3')?.textContent).toBe('Stored Goal');
-    expect(document.getElementById('activeSessionIndicator')?.classList.contains('has-active')).toBe(false);
-    expect(document.getElementById('activeSessionText')?.textContent).toContain('No active');
   });
 
   it('adds a new goal via modal workflow', () => {
@@ -184,18 +175,13 @@ describe('MasteryApp integration', () => {
     const app = new MasteryApp();
     click('.startBtn');
     expect(window.localStorage.getItem(ACTIVE_SESSION_KEY)).not.toBeNull();
-    const indicator = document.getElementById('activeSessionIndicator');
-    const stopControl = document.getElementById('activeSessionStop') as HTMLButtonElement | null;
-    expect(indicator?.classList.contains('has-active')).toBe(true);
-    expect(stopControl?.disabled).toBe(false);
     vi.advanceTimersByTime(30 * 60 * 1000); // 30 minutes
-    stopControl?.click();
+    click('.stopBtn');
     const sessions = JSON.parse(window.localStorage.getItem(SESSIONS_KEY) ?? '[]');
     expect(sessions.length).toBe(1);
     expect(sessions[0].duration).toBeGreaterThan(0);
     const updatedGoals = JSON.parse(window.localStorage.getItem(GOALS_KEY) ?? '[]');
     expect(updatedGoals[0].totalTimeSpent).toBeGreaterThan(0);
-    expect(indicator?.classList.contains('has-active')).toBe(false);
     expect(app).toBeInstanceOf(MasteryApp);
   });
 

@@ -79,10 +79,6 @@ export class MasteryApp {
     close: requireElement<HTMLButtonElement>('achievementsClose')
   };
   private readonly achievementToast = requireElement<HTMLDivElement>('achievementToast');
-  private readonly activeSessionIndicator = requireElement<HTMLDivElement>('activeSessionIndicator');
-  private readonly activeSessionIcon = requireElement<HTMLSpanElement>('activeSessionIcon');
-  private readonly activeSessionText = requireElement<HTMLSpanElement>('activeSessionText');
-  private readonly activeSessionStop = requireElement<HTMLButtonElement>('activeSessionStop');
 
   private achievements: AchievementRecord[] = [];
   private achievementDefinitions: AchievementDefinition[] = [];
@@ -101,11 +97,9 @@ export class MasteryApp {
     this.setupProgressModal();
     this.setupAnalyticsModal();
     this.setupAchievementsModal();
-    this.setupActiveSessionControls();
     this.setupBackupControls();
     this.setupPersistence();
     this.renderGoals();
-    this.updateActiveSessionIndicator();
     this.updateBackupStatus();
     this.startBackupStatusTimer();
     this.evaluateAchievements(true);
@@ -250,10 +244,6 @@ export class MasteryApp {
 
   private setupAchievementsModal(): void {
     this.achievementsModal.close.addEventListener('click', () => hideModal(this.achievementsModal.modal));
-  }
-
-  private setupActiveSessionControls(): void {
-    this.activeSessionStop.addEventListener('click', () => this.stopGoal());
   }
 
   private restoreActiveSession(): void {
@@ -548,7 +538,6 @@ export class MasteryApp {
         live.textContent = formatHMS((Date.now() - goal.startTime) / 1000);
       }
     });
-    this.refreshActiveSessionIndicatorText();
   }
 
   private renderGoals(): void {
@@ -583,7 +572,7 @@ export class MasteryApp {
           ? formatHMS((Date.now() - goal.startTime) / 1000)
           : '00:00:00';
 
-      startBtn.disabled = goal.isActive || this.goals.some((g) => g.isActive && g.id !== goal.id);
+      startBtn.disabled = goal.isActive;
       stopBtn.disabled = !goal.isActive;
 
       if (goal.isActive) {
@@ -610,7 +599,6 @@ export class MasteryApp {
     });
 
     this.ensureTicker();
-    this.updateActiveSessionIndicator();
   }
 
   private getAchievementDefinitionsForDisplay(): AchievementDefinition[] {
@@ -626,36 +614,6 @@ export class MasteryApp {
       }
     }
     return sortAchievements(definitions);
-  }
-
-
-  private getActiveGoal(): Goal | undefined {
-    return this.goals.find((goal) => goal.isActive && goal.startTime);
-  }
-
-  private updateActiveSessionIndicator(): void {
-    const active = this.getActiveGoal();
-    if (active && active.startTime) {
-      this.activeSessionIndicator.classList.add('has-active');
-      this.activeSessionStop.disabled = false;
-      this.activeSessionStop.dataset.goalId = active.id;
-      this.activeSessionIcon.textContent = 'timer';
-      this.refreshActiveSessionIndicatorText(active);
-    } else {
-      this.activeSessionIndicator.classList.remove('has-active');
-      this.activeSessionStop.disabled = true;
-      delete this.activeSessionStop.dataset.goalId;
-      this.activeSessionIcon.textContent = 'hourglass_empty';
-      this.activeSessionText.textContent = 'No active goal';
-    }
-  }
-
-  private refreshActiveSessionIndicatorText(goal?: Goal): void {
-    const active = goal ?? this.getActiveGoal();
-    if (active && active.startTime) {
-      const elapsed = formatDuration(Date.now() - active.startTime);
-      this.activeSessionText.textContent = `Tracking "${active.title}" • ${elapsed}`;
-    }
   }
 
   private renderAchievementsView(): void {
