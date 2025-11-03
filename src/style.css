@@ -50,12 +50,34 @@ header.appbar nav .backup-status { margin-left: auto; font-size: 12px; color: va
       .btn-danger { color: #fff; background: var(--danger); border-color: var(--danger); }
       .btn:disabled { opacity: .6; cursor: not-allowed; }
       .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-      .goal { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: start; }
+      .goal {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: start;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: color-mix(in oklab, var(--panel) 92%, var(--bg) 8%);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  transition: border-color 0.15s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  box-sizing: border-box;
+}
+.goal:hover {
+  border-color: color-mix(in oklab, var(--border) 60%, var(--primary) 40%);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.25);
+  transform: translateY(-2px);
+}
+.goal:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 25%, transparent);
+}
+
       .goal h3 { margin: 0; font-size: 18px; }
       .goal .meta { font-size: 12px; }
       .progress { height: 12px; background: color-mix(in oklab, var(--panel) 70%, var(--text) 30%); border-radius: 999px; overflow: hidden; border: 1px solid var(--border); }
       .progress > span { display: block; height: 100%; background: var(--success); width: 0%; transition: width .2s ease; }
-      .list { display: grid; gap: 14px; }
+      .list { display: grid; gap: 20px; }
       .stack { display: grid; gap: 10px; }
       .spacer { height: 8px; }
       .right { text-align: right; }
@@ -107,40 +129,128 @@ header.appbar nav .backup-status { margin-left: auto; font-size: 12px; color: va
     overflow-x: auto;
     padding-bottom: 4px;
   }
-  header.appbar nav::-webkit-scrollbar { display: none; }
-  .container { padding: 20px 16px 96px; }
-  .card { padding: 16px 14px; }
-  .goal { grid-template-columns: 1fr; gap: 8px; }
-  .goal .liveTimer { justify-self: flex-start; }
-  .controls { gap: 6px; }
-  .controls .btn { flex: 1 1 calc(50% - 6px); justify-content: center; }
-  header.appbar nav .backup-status { flex: 0 0 100%; margin-left: 0; text-align: left; white-space: normal; }
+  header.appbar nav::-webkit-scrollbar {
+    display: none;
+  }
+  header.appbar nav .backup-status {
+    flex: 0 0 100%;
+    margin-left: 0;
+    text-align: left;
+    white-space: normal;
+  }
+  .container {
+    padding: 20px 16px 96px;
+  }
+  .card {
+    padding: 16px 14px;
+  }
+  .goal {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 14px;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
+  }
+  .goal:hover {
+    transform: none;
+  }
+  .goal .liveTimer {
+    justify-self: flex-start;
+  }
+  .controls {
+    gap: 6px;
+  }
+  .controls .btn {
+    flex: 1 1 calc(50% - 6px);
+    justify-content: center;
+  }
 }
+
 
 @media (max-width: 600px) {
-  body { font-size: 15px; }
-  .appbar-inner h1 { font-size: 18px; }
-  header.appbar nav { gap: 4px; }
-  header.appbar nav .btn { padding: 8px 10px; }
-  .container { padding: 16px 12px 88px; }
-  .card { padding: 14px; }
-  .goal h3 { font-size: 17px; }
-  .controls { flex-wrap: wrap; gap: 8px; }
-  .controls .btn { min-width: 100%; }
-  .fab { width: 52px; height: 52px; bottom: 1.5rem; right: 1.5rem; }
-  .modal { width: min(520px, 96vw); }
-  .modal header, .modal main, .modal footer { padding: 14px; }
-  .grid { grid-template-columns: 1fr; }
-  .grid2 { grid-template-columns: 1fr; }
-  header.appbar nav .backup-status { flex: 0 0 100%; margin-left: 0; text-align: left; }
+  body {
+    font-size: 15px;
+  }
+  .appbar-inner h1 {
+    font-size: 18px;
+  }
+  header.appbar nav {
+    gap: 4px;
+  }
+  header.appbar nav .btn {
+    padding: 8px 10px;
+  }
+  header.appbar nav .backup-status {
+    flex: 0 0 100%;
+    margin-left: 0;
+    text-align: left;
+    margin-top: 6px;
+  }
+  .container {
+    padding: 16px 12px 88px;
+  }
+  .card {
+    padding: 14px;
+  }
+  .goal {
+    padding: 12px;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+  }
+  .goal:hover {
+    transform: none;
+  }
+  .goal h3 {
+    font-size: 17px;
+  }
+  .controls {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .controls .btn {
+    min-width: 100%;
+  }
+  .fab {
+    width: 52px;
+    height: 52px;
+    bottom: 1.5rem;
+    right: 1.5rem;
+  }
+  .modal {
+    width: min(520px, 96vw);
+  }
+  .modal header,
+  .modal main,
+  .modal footer {
+    padding: 14px;
+  }
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .grid2 {
+    grid-template-columns: 1fr;
+  }
 }
 
+
 @media (max-width: 400px) {
-  header.appbar nav .btn .label { display: none; }
-  header.appbar nav .btn { padding: 8px; }
-  .controls .btn .label { display: none; }
-  .controls .btn { min-width: auto; flex: 1 1 44px; padding: 10px; }
+  header.appbar nav .btn .label {
+    display: none;
+  }
+  header.appbar nav .btn {
+    padding: 8px;
+  }
+  header.appbar nav .backup-status {
+    font-size: 11px;
+  }
+  .controls .btn .label {
+    display: none;
+  }
+  .controls .btn {
+    min-width: auto;
+    flex: 1 1 44px;
+    padding: 10px;
+  }
 }
+
 
 @media (max-width: 900px) {
   .appbar-inner {
