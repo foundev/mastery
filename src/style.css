@@ -34,6 +34,54 @@ header.appbar { position: sticky; top: 0; z-index: 50; backdrop-filter: saturate
 header.appbar nav { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 header.appbar nav .backup-status { margin-left: auto; font-size: 12px; color: var(--muted); white-space: nowrap; }
 
+.active-session-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin: 12px auto 0;
+  padding: 12px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in oklab, var(--panel) 88%, var(--bg) 12%);
+  max-width: min(520px, 100%);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.active-session-indicator .indicator-body {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.active-session-indicator .indicator-body .material-symbols-outlined {
+  font-size: 22px;
+}
+
+.active-session-indicator.has-active {
+  border-color: color-mix(in oklab, var(--border) 55%, var(--primary) 45%);
+  background: color-mix(in oklab, var(--panel) 92%, var(--primary) 8%);
+}
+
+.active-session-indicator:not(.has-active) {
+  opacity: 0.85;
+}
+
+.active-session-indicator .btn {
+  padding: 8px 12px;
+  min-width: 80px;
+}
+
+.active-session-indicator .btn:disabled {
+  opacity: 0.4;
+}
+
+header.appbar nav + .active-session-indicator {
+  margin-top: 12px;
+}
+
       .subtitle { margin: 6px 0 20px; color: var(--muted); }
       .row { display: flex; gap: 16px; flex-wrap: wrap; }
 .card { border: 1px solid var(--border); border-radius: 12px; padding: 16px; flex: 1 1 340px; background: var(--panel); box-shadow: 0 1px 1px rgba(0,0,0,.04); box-sizing: border-box; }
@@ -199,6 +247,15 @@ header.appbar nav .backup-status { margin-left: auto; font-size: 12px; color: va
     text-align: left;
     margin-top: 6px;
   }
+  #activeSessionIndicator {
+    gap: 10px;
+    padding: 12px 14px;
+  }
+  #activeSessionIndicator .indicator-body {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
   .container {
     padding: 16px 12px 88px;
   }
@@ -254,6 +311,9 @@ header.appbar nav .backup-status { margin-left: auto; font-size: 12px; color: va
   }
   header.appbar nav .backup-status {
     font-size: 11px;
+  }
+  #activeSessionIndicator .btn .label {
+    display: none;
   }
   .controls .btn .label {
     display: none;
