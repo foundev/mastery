@@ -1,0 +1,92 @@
+:root {
+        color-scheme: light dark;
+        --bg: #0b1020;           /* deep blue-gray */
+        --panel: #121a2e;        /* panel background */
+        --border: #2a3553;       /* subtle border */
+        --text: #e7ecf5;         /* primary text */
+        --muted: #a9b3c9;        /* secondary text */
+        --primary: #5b8cff;      /* primary blue */
+        --primary-contrast: #08122a;
+        --success: #22c55e;      /* green */
+        --danger: #ef4444;       /* red */
+        --focus: #ffd166;        /* focus accent */
+      }
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #f7f8fb;
+          --panel: #ffffff;
+          --border: #e3e7ef;
+          --text: #0f172a;
+          --muted: #475569;
+          --primary: #2563eb;
+          --primary-contrast: #ffffff;
+          --success: #16a34a;
+          --danger: #dc2626;
+          --focus: #92400e;
+        }
+      }
+      html, body { height: 100%; }
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; margin: 0; line-height: 1.5; background: var(--bg); color: var(--text); }
+      .container { max-width: 1000px; margin: 0 auto; padding: 24px; }
+      header.appbar { position: sticky; top: 0; z-index: 50; backdrop-filter: saturate(140%) blur(6px); background: color-mix(in oklab, var(--bg) 85%, transparent); border-bottom: 1px solid var(--border); }
+      .appbar-inner { display: flex; align-items: center; justify-content: space-between; gap: 12px; max-width: 1000px; margin: 0 auto; padding: 12px 24px; }
+      h1 { margin: 0; font-size: 20px; }
+      .subtitle { margin: 6px 0 20px; color: var(--muted); }
+      .row { display: flex; gap: 16px; flex-wrap: wrap; }
+      .card { border: 1px solid var(--border); border-radius: 12px; padding: 16px; flex: 1 1 340px; background: var(--panel); box-shadow: 0 1px 1px rgba(0,0,0,.04); }
+      .muted { color: var(--muted); }
+      input, button, select, textarea { font: inherit; color: inherit; }
+      input[type="text"], input[type="number"], input[type="date"], textarea { padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; width: 100%; box-sizing: border-box; background: var(--bg); color: var(--text); }
+      input:focus, textarea:focus { outline: 3px solid color-mix(in oklab, var(--focus) 40%, transparent); border-color: var(--focus); }
+      .btn { padding: 10px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--text); cursor: pointer; transition: background .15s, border-color .15s, transform .05s; display: inline-flex; align-items: center; gap: 6px; }
+      .btn:hover { border-color: color-mix(in oklab, var(--border) 60%, var(--text) 40%); }
+      .btn:active { transform: translateY(1px); }
+      .btn-primary { background: var(--primary); color: var(--primary-contrast); border-color: var(--primary); }
+      .btn-secondary { background: color-mix(in oklab, var(--panel) 80%, var(--text) 20%); }
+      .btn-outline { background: transparent; }
+      .btn-danger { color: #fff; background: var(--danger); border-color: var(--danger); }
+      .btn:disabled { opacity: .6; cursor: not-allowed; }
+      .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+      .goal { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: start; }
+      .goal h3 { margin: 0; font-size: 18px; }
+      .goal .meta { font-size: 12px; }
+      .progress { height: 12px; background: color-mix(in oklab, var(--panel) 70%, var(--text) 30%); border-radius: 999px; overflow: hidden; border: 1px solid var(--border); }
+      .progress > span { display: block; height: 100%; background: var(--success); width: 0%; transition: width .2s ease; }
+      .list { display: grid; gap: 14px; }
+      .stack { display: grid; gap: 10px; }
+      .spacer { height: 8px; }
+      .right { text-align: right; }
+      .small { font-size: 12px; }
+      .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+      @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
+      .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; vertical-align: middle; }
+      .material-symbols-outlined.filled { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+      .controls button .material-symbols-outlined { font-size: 22px; }
+      .controls button .label { margin-left: 2px; }
+      .controls button { display: inline-flex; align-items: center; }
+      .controls button:disabled .material-symbols-outlined { opacity: .9; }
+      .startBtn .material-symbols-outlined { color: #fff; }
+      .stopBtn .material-symbols-outlined { color: #fff; }
+      /* Modal styles */
+      .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; align-items: center; justify-content: center; z-index: 1000; opacity: 0; transition: opacity .2s ease; }
+      .modal-backdrop[aria-hidden="false"] { opacity: 1; }
+      .modal { width: min(640px, 92vw); background: var(--panel); color: inherit; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,.35); overflow: hidden; transform: scale(.98) translateY(8px); transition: transform .2s ease; }
+      .modal-backdrop[aria-hidden="false"] .modal { transform: none; }
+      .modal header, .modal footer { padding: 16px; border-bottom: 1px solid var(--border); }
+      .modal footer { border-top: 1px solid var(--border); border-bottom: none; }
+      .modal main { padding: 16px; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+      .modal h3 { margin: 0; font-size: 18px; }
+      /* Ensure dialog buttons have sufficient contrast */
+      .modal footer button { padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--panel); color: var(--text); }
+      .modal footer button .material-symbols-outlined { color: currentColor; }
+      .modal footer button.primary, #ag_submit, #atm_submit { background: var(--primary); color: var(--primary-contrast); border-color: var(--primary); }
+      .modal footer button.secondary, #ag_cancel, #atm_cancel { background: transparent; color: var(--text); }
+      .modal footer button.contrast, #del_confirm { background: var(--danger); color: #ffffff; border-color: var(--danger); }
+      .fab { position: fixed; bottom: 2rem; right: 2rem; width: 56px; height: 56px; border-radius: 50%; background: var(--primary); color: var(--primary-contrast); border: none; cursor: pointer; font-size: 24px; font-weight: bold; box-shadow: 0 6px 16px rgba(0,0,0,.35); transition: transform .15s ease, box-shadow .15s ease; display: flex; align-items: center; justify-content: center; }
+      .fab:hover { transform: scale(1.06); box-shadow: 0 6px 16px rgba(0,0,0,.2); }
+      /* Focus ring */
+:where(a, button, input, textarea):focus { outline: 3px solid color-mix(in oklab, var(--focus) 50%, transparent); outline-offset: 2px; }
+.suggestion-item { padding: 8px 10px; cursor: pointer; border-bottom: 1px solid var(--border); background: color-mix(in oklab, var(--panel) 90%, transparent 10%); }
+.suggestion-item:last-child { border-bottom: none; }
+.suggestion-item:hover { background: color-mix(in oklab, var(--primary) 18%, var(--panel) 82%); }

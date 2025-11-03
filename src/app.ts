@@ -1,0 +1,608 @@
+import { ACTIVE_SESSION_KEY, GOALS_KEY, SESSIONS_KEY } from './constants';
+import { appendSession, getActiveSession, loadGoals, loadSessions, saveActiveSession, saveGoals } from './storage';
+import { formatDuration, formatHMS, hoursToMilliseconds, millisecondsToHours, estimateCompletion, validateDailyLimit } from './time';
+import { hideModal, showModal } from './ui/modals';
+import { GOAL_TEMPLATES } from './templates';
+import { renderProgressChart, renderAnalyticsCharts } from './charts';
+import { requireElement, requireTemplate } from './dom';
+import type { Goal, GoalSession } from './types';
+
+interface ProgressCharts {
+  resize?: () => void;
+}
+
+interface AnalyticsCharts {
+  resize?: () => void;
+}
+
+export class MasteryApp {
+  private goals: Goal[] = [];
+  private tickHandle: number | null = null;
+  private addTimeGoalId: string | null = null;
+  private deleteGoalId: string | null = null;
+
+  private readonly goalsList = requireElement<HTMLDivElement>('goalsList');
+  private readonly goalTemplate = requireTemplate('goalItemTmpl');
+
+  private readonly modals = {
+    addGoal: requireElement<HTMLDivElement>('addGoalModal'),
+    addTime: requireElement<HTMLDivElement>('addTimeModal'),
+    progress: requireElement<HTMLDivElement>('progressModal'),
+    delete: requireElement<HTMLDivElement>('deleteModal'),
+    analytics: requireElement<HTMLDivElement>('analyticsModal')
+  };
+
+  private readonly addGoalForm = {
+    title: requireElement<HTMLInputElement>('ag_title'),
+    description: requireElement<HTMLTextAreaElement>('ag_desc'),
+    hours: requireElement<HTMLInputElement>('ag_hours'),
+    suggestions: requireElement<HTMLDivElement>('ag_suggestions'),
+    submit: requireElement<HTMLButtonElement>('ag_submit'),
+    cancel: requireElement<HTMLButtonElement>('ag_cancel')
+  };
+
+  private readonly addTimeForm = {
+    hours: requireElement<HTMLInputElement>('atm_hours'),
+    date: requireElement<HTMLInputElement>('atm_date'),
+    submit: requireElement<HTMLButtonElement>('atm_submit'),
+    cancel: requireElement<HTMLButtonElement>('atm_cancel'),
+    error: requireElement<HTMLDivElement>('atm_error')
+  };
+
+  private readonly progressViews = {
+    stats: requireElement<HTMLDivElement>('pm_stats'),
+    chart: requireElement<HTMLDivElement>('pm_chart'),
+    close: requireElement<HTMLButtonElement>('pm_close'),
+    title: requireElement<HTMLHeadingElement>('progressTitle')
+  };
+
+  private readonly analyticsViews = {
+    trend: requireElement<HTMLDivElement>('an_trend'),
+    pie: requireElement<HTMLDivElement>('an_pie'),
+    close: requireElement<HTMLButtonElement>('an_close')
+  };
+
+  private readonly deleteViews = {
+    question: requireElement<HTMLParagraphElement>('del_question'),
+    warning: requireElement<HTMLParagraphElement>('del_warning'),
+    confirm: requireElement<HTMLButtonElement>('del_confirm'),
+    cancel: requireElement<HTMLButtonElement>('del_cancel')
+  };
+
+  private progressCharts: ProgressCharts = {};
+  private analyticsCharts: AnalyticsCharts = {};
+
+  constructor() {
+    this.goals = loadGoals();
+    this.restoreActiveSession();
+    this.bindGlobalButtons();
+    this.setupAddGoalModal();
+    this.setupAddTimeModal();
+    this.setupDeleteModal();
+    this.setupProgressModal();
+    this.setupAnalyticsModal();
+    this.setupBackupControls();
+    this.setupPersistence();
+    this.renderGoals();
+  }
+
+  private bindGlobalButtons(): void {
+    requireElement<HTMLButtonElement>('openAddGoalFab').addEventListener('click', () => this.openAddGoalModal());
+    const toolbarAdd = document.getElementById('openAddGoalToolbar');
+    toolbarAdd?.addEventListener('click', () => this.openAddGoalModal());
+    const analyticsBtn = document.getElementById('openAnalyticsBtn');
+    analyticsBtn?.addEventListener('click', () => this.openAnalytics());
+  }
+
+  private setupBackupControls(): void {
+    const exportBtn = document.getElementById('exportBtn');
+    const importBtn = document.getElementById('importBtn');
+    const importInput = document.getElementById('importInput') as HTMLInputElement | null;
+
+    exportBtn?.addEventListener('click', () => this.exportBackup());
+    if (importBtn && importInput) {
+      importBtn.addEventListener('click', () => importInput.click());
+      importInput.addEventListener('change', async (event) => {
+        const file = (event.target as HTMLInputElement).files?.[0];
+        if (!file) return;
+        try {
+          const text = await file.text();
+          this.importBackup(text);
+        } catch {
+          alert('Failed to read backup file.');
+        } finally {
+          importInput.value = '';
+        }
+      });
+    }
+  }
+
+  private setupPersistence(): void {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'hidden') return;
+      const active = this.goals.find((goal) => goal.isActive && goal.startTime);
+      if (active && active.startTime) {
+        saveActiveSession({
+          goalId: active.id,
+          startTime: active.startTime,
+          lastUpdated: Date.now()
+        });
+      }
+    });
+
+    window.addEventListener('beforeunload', () => {
+      const active = this.goals.find((goal) => goal.isActive && goal.startTime);
+      if (active && active.startTime) {
+        saveActiveSession({
+          goalId: active.id,
+          startTime: active.startTime,
+          lastUpdated: Date.now()
+        });
+      }
+    });
+  }
+
+  private setupAddGoalModal(): void {
+    const titleInput = this.addGoalForm.title;
+    const hoursInput = this.addGoalForm.hours;
+    const suggestions = this.addGoalForm.suggestions;
+
+    titleInput.addEventListener('input', () => {
+      this.renderTemplateSuggestions(titleInput.value);
+      this.validateAddGoalForm();
+    });
+    hoursInput.addEventListener('input', () => this.validateAddGoalForm());
+
+    this.addGoalForm.cancel.addEventListener('click', () => this.closeAddGoalModal());
+    this.addGoalForm.submit.addEventListener('click', () => {
+      const title = this.addGoalForm.title.value.trim();
+      const description = this.addGoalForm.description.value.trim();
+      const totalHours = Math.max(0.1, Number(this.addGoalForm.hours.value));
+      this.addGoal(title, totalHours, description);
+      this.closeAddGoalModal();
+      suggestions.innerHTML = '';
+      suggestions.style.display = 'none';
+    });
+  }
+
+  private setupAddTimeModal(): void {
+    const today = new Date().toISOString().split('T')[0];
+    this.addTimeForm.date.setAttribute('max', today);
+    this.addTimeForm.hours.addEventListener('input', () => {
+      const hours = Number(this.addTimeForm.hours.value);
+      this.addTimeForm.submit.disabled = !(hours > 0);
+      if (hours > 0) {
+        this.addTimeForm.error.style.display = 'none';
+      }
+    });
+    this.addTimeForm.cancel.addEventListener('click', () => this.closeAddTimeModal());
+    this.addTimeForm.submit.addEventListener('click', () => this.handleManualTimeSubmit());
+  }
+
+  private setupDeleteModal(): void {
+    this.deleteViews.cancel.addEventListener('click', () => hideModal(this.modals.delete));
+    this.deleteViews.confirm.addEventListener('click', () => {
+      if (this.deleteGoalId) {
+        this.deleteGoal(this.deleteGoalId);
+      }
+      this.deleteGoalId = null;
+      hideModal(this.modals.delete);
+    });
+  }
+
+  private setupProgressModal(): void {
+    this.progressViews.close.addEventListener('click', () => {
+      hideModal(this.modals.progress);
+      this.progressCharts.resize = undefined;
+    });
+  }
+
+  private setupAnalyticsModal(): void {
+    this.analyticsViews.close.addEventListener('click', () => {
+      hideModal(this.modals.analytics);
+      if (this.analyticsCharts.resize) {
+        window.removeEventListener('resize', this.analyticsCharts.resize);
+      }
+      this.analyticsCharts.resize = undefined;
+    });
+  }
+
+  private restoreActiveSession(): void {
+    const saved = getActiveSession();
+    if (!saved) return;
+    const goal = this.goals.find((g) => g.id === saved.goalId);
+    if (!goal) {
+      saveActiveSession(null);
+      return;
+    }
+    goal.isActive = true;
+    goal.startTime = saved.startTime;
+    saveGoals(this.goals);
+  }
+
+  private renderTemplateSuggestions(query: string): void {
+    const container = this.addGoalForm.suggestions;
+    container.innerHTML = '';
+    const normalized = query.trim().toLowerCase();
+    if (normalized.length < 2) {
+      container.style.display = 'none';
+      return;
+    }
+
+    const matches = GOAL_TEMPLATES.filter(
+      (template) =>
+        template.title.toLowerCase().includes(normalized) ||
+        template.keywords.some((keyword) => keyword.includes(normalized))
+    );
+
+    if (matches.length === 0) {
+      container.style.display = 'none';
+      return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    matches.slice(0, 20).forEach((template) => {
+      const item = document.createElement('div');
+      item.className = 'suggestion-item';
+      item.innerHTML = `
+        <div><strong>${template.title}</strong></div>
+        <div class="small muted">${template.description}</div>
+        <div class="small muted">${template.hours} hours • ${template.category}</div>
+      `;
+      item.addEventListener('click', () => {
+        this.addGoalForm.title.value = template.title;
+        this.addGoalForm.description.value = template.description;
+        this.addGoalForm.hours.value = String(template.hours);
+        container.style.display = 'none';
+        this.validateAddGoalForm();
+      });
+      fragment.appendChild(item);
+    });
+    container.appendChild(fragment);
+    container.style.display = 'block';
+  }
+
+  private validateAddGoalForm(): void {
+    const titleValid = this.addGoalForm.title.value.trim().length > 0;
+    const hoursValid = Number(this.addGoalForm.hours.value) > 0;
+    this.addGoalForm.submit.disabled = !(titleValid && hoursValid);
+  }
+
+  private openAddGoalModal(): void {
+    this.addGoalForm.title.value = '';
+    this.addGoalForm.description.value = '';
+    this.addGoalForm.hours.value = '';
+    this.addGoalForm.suggestions.innerHTML = '';
+    this.addGoalForm.suggestions.style.display = 'none';
+    this.addGoalForm.submit.disabled = true;
+    showModal(this.modals.addGoal);
+    setTimeout(() => this.addGoalForm.title.focus(), 0);
+  }
+
+  private closeAddGoalModal(): void {
+    hideModal(this.modals.addGoal);
+  }
+
+  private openAddTimeModal(goalId: string): void {
+    this.addTimeGoalId = goalId;
+    this.addTimeForm.hours.value = '';
+    this.addTimeForm.date.value = '';
+    this.addTimeForm.submit.disabled = true;
+    this.addTimeForm.error.style.display = 'none';
+    showModal(this.modals.addTime);
+    setTimeout(() => this.addTimeForm.hours.focus(), 0);
+  }
+
+  private closeAddTimeModal(): void {
+    hideModal(this.modals.addTime);
+  }
+
+  private openProgressModal(goalId: string): void {
+    const goal = this.goals.find((g) => g.id === goalId);
+    if (!goal) return;
+
+    this.progressViews.title.textContent = `Progress: ${goal.title}`;
+    const sessions = loadSessions().filter((session) => session.goalId === goal.id);
+    const activeDelta =
+      goal.isActive && goal.startTime ? Date.now() - goal.startTime : 0;
+    const totalTime = goal.totalTimeSpent + activeDelta;
+    const totalHoursSpent = millisecondsToHours(totalTime);
+    const remainingHours = Math.max(0, goal.totalHours - totalHoursSpent);
+    const progressPct =
+      goal.totalHours > 0 ? Math.min(100, (totalHoursSpent / goal.totalHours) * 100) : 0;
+    const estimate = estimateCompletion(goal, loadSessions());
+
+    const estimateText = estimate
+      ? `<div><strong>Estimated completion:</strong> ${estimate.toLocaleDateString()}</div>`
+      : '';
+    this.progressViews.stats.innerHTML = `
+      <div><strong>Total time:</strong> ${formatDuration(totalTime)} (${totalHoursSpent.toFixed(1)}h / ${goal.totalHours}h)</div>
+      <div><strong>Progress:</strong> ${progressPct.toFixed(1)}%</div>
+      <div><strong>Remaining:</strong> ${remainingHours.toFixed(1)}h</div>
+      ${estimateText}
+    `;
+
+    showModal(this.modals.progress);
+    setTimeout(() => {
+      const chart = renderProgressChart(this.progressViews.chart, sessions, goal.title, goal.totalHours);
+      const resize = () => chart.resize();
+      this.progressCharts.resize = resize;
+      window.addEventListener('resize', resize, { once: true });
+    }, 100);
+  }
+
+  private openDeleteModal(goalId: string, title: string): void {
+    this.deleteGoalId = goalId;
+    this.deleteViews.question.textContent = `Are you sure you want to delete "${title}"?`;
+    showModal(this.modals.delete);
+  }
+
+  private openAnalytics(): void {
+    showModal(this.modals.analytics);
+    setTimeout(() => {
+      const sessions = loadSessions();
+      const { trend, pie } = renderAnalyticsCharts(
+        this.analyticsViews.trend,
+        this.analyticsViews.pie,
+        sessions,
+        this.goals
+      );
+      const resize = () => {
+        trend.resize();
+        pie.resize();
+      };
+      if (this.analyticsCharts.resize) {
+        window.removeEventListener('resize', this.analyticsCharts.resize);
+      }
+      this.analyticsCharts.resize = resize;
+      window.addEventListener('resize', resize, { once: true });
+    }, 50);
+  }
+
+  private handleManualTimeSubmit(): void {
+    if (!this.addTimeGoalId) return;
+    const hours = Number(this.addTimeForm.hours.value);
+    if (!(hours > 0)) return;
+
+    const targetDate = this.addTimeForm.date.value
+      ? new Date(this.addTimeForm.date.value)
+      : new Date();
+    const allSessions = loadSessions();
+    const validation = validateDailyLimit(allSessions, hours, targetDate);
+    if (!validation.ok) {
+      this.addTimeForm.error.textContent = validation.message ?? 'Unable to add time.';
+      this.addTimeForm.error.style.display = 'block';
+      return;
+    }
+
+    const duration = hoursToMilliseconds(hours);
+    const endTime = new Date(targetDate);
+    const startTime = endTime.getTime() - duration;
+    const session: GoalSession = {
+      goalId: this.addTimeGoalId,
+      startTime,
+      endTime: endTime.getTime(),
+      duration
+    };
+    appendSession(session);
+
+    const goal = this.goals.find((g) => g.id === this.addTimeGoalId);
+    if (goal) {
+      goal.totalTimeSpent += duration;
+      saveGoals(this.goals);
+    }
+
+    this.closeAddTimeModal();
+    this.renderGoals();
+  }
+
+  private addGoal(title: string, totalHours: number, description: string): void {
+    const goal: Goal = {
+      id: crypto.randomUUID(),
+      title,
+      description,
+      totalHours,
+      totalTimeSpent: 0,
+      isActive: false,
+      createdAt: Date.now()
+    };
+    this.goals.push(goal);
+    saveGoals(this.goals);
+    this.renderGoals();
+  }
+
+  private deleteGoal(goalId: string): void {
+    const goal = this.goals.find((g) => g.id === goalId);
+    if (goal?.isActive) {
+      this.stopGoal();
+    }
+    this.goals = this.goals.filter((g) => g.id !== goalId);
+    saveGoals(this.goals);
+    this.renderGoals();
+  }
+
+  private startGoal(goalId: string): void {
+    // ensure only one session running
+    this.stopGoal();
+    const goal = this.goals.find((g) => g.id === goalId);
+    if (!goal || goal.isActive) return;
+    goal.isActive = true;
+    goal.startTime = Date.now();
+    saveGoals(this.goals);
+    saveActiveSession({
+      goalId: goal.id,
+      startTime: goal.startTime,
+      lastUpdated: Date.now()
+    });
+    this.renderGoals();
+  }
+
+  private stopGoal(): void {
+    const now = Date.now();
+    let changed = false;
+    this.goals = this.goals.map((goal) => {
+      if (goal.isActive && goal.startTime) {
+        const duration = now - goal.startTime;
+        const session: GoalSession = {
+          goalId: goal.id,
+          startTime: goal.startTime,
+          endTime: now,
+          duration
+        };
+        appendSession(session);
+        changed = true;
+        return {
+          ...goal,
+          isActive: false,
+          startTime: undefined,
+          totalTimeSpent: goal.totalTimeSpent + duration
+        };
+      }
+      return goal;
+    });
+    if (changed) {
+      saveGoals(this.goals);
+    }
+    saveActiveSession(null);
+    this.renderGoals();
+  }
+
+  private ensureTicker(): void {
+    const anyActive = this.goals.some((goal) => goal.isActive);
+    if (anyActive && this.tickHandle == null) {
+      this.tickHandle = window.setInterval(() => this.updateLiveTimers(), 1000);
+    } else if (!anyActive && this.tickHandle != null) {
+      clearInterval(this.tickHandle);
+      this.tickHandle = null;
+    }
+  }
+
+  private updateLiveTimers(): void {
+    const goalNodes = this.goalsList.querySelectorAll<HTMLElement>('.goal');
+    this.goals.forEach((goal, index) => {
+      if (!goal.isActive || !goal.startTime) return;
+      const live = goalNodes[index]?.querySelector<HTMLElement>('.liveTimer');
+      if (live) {
+        live.textContent = formatHMS((Date.now() - goal.startTime) / 1000);
+      }
+    });
+  }
+
+  private renderGoals(): void {
+    this.goalsList.innerHTML = '';
+
+    this.goals.forEach((goal) => {
+      const node = document.importNode(this.goalTemplate.content, true);
+      const root = node.querySelector('.goal') as HTMLElement;
+      const title = node.querySelector('h3');
+      const progressBar = node.querySelector<HTMLElement>('.progress > span');
+      const meta = node.querySelector<HTMLElement>('.meta');
+      const liveTimer = node.querySelector<HTMLElement>('.liveTimer');
+      const startBtn = node.querySelector<HTMLButtonElement>('.startBtn');
+      const stopBtn = node.querySelector<HTMLButtonElement>('.stopBtn');
+      const addTimeBtn = node.querySelector<HTMLButtonElement>('.addTimeBtn');
+      const progressBtn = node.querySelector<HTMLButtonElement>('.progressBtn');
+      const deleteBtn = node.querySelector<HTMLButtonElement>('.deleteBtn');
+
+      if (!root || !title || !progressBar || !meta || !liveTimer || !startBtn || !stopBtn || !addTimeBtn || !progressBtn || !deleteBtn) {
+        return;
+      }
+
+      title.textContent = goal.title;
+      const percent =
+        goal.totalHours > 0
+          ? Math.min(100, (millisecondsToHours(goal.totalTimeSpent) / goal.totalHours) * 100)
+          : 0;
+      progressBar.style.width = `${percent}%`;
+      meta.textContent = `${millisecondsToHours(goal.totalTimeSpent).toFixed(1)} / ${goal.totalHours} h (${percent.toFixed(0)}%)`;
+      liveTimer.textContent =
+        goal.isActive && goal.startTime
+          ? formatHMS((Date.now() - goal.startTime) / 1000)
+          : '00:00:00';
+
+      startBtn.disabled = goal.isActive;
+      stopBtn.disabled = !goal.isActive;
+
+      const ariaProgress = root.querySelector('.progress') as HTMLElement | null;
+      if (ariaProgress) {
+        ariaProgress.setAttribute('aria-valuemin', '0');
+        ariaProgress.setAttribute('aria-valuemax', String(Math.max(1, goal.totalHours)));
+        ariaProgress.setAttribute(
+          'aria-valuenow',
+          millisecondsToHours(goal.totalTimeSpent).toFixed(1)
+        );
+      }
+
+      startBtn.addEventListener('click', () => this.startGoal(goal.id));
+      stopBtn.addEventListener('click', () => this.stopGoal());
+      addTimeBtn.addEventListener('click', () => this.openAddTimeModal(goal.id));
+      progressBtn.addEventListener('click', () => this.openProgressModal(goal.id));
+      deleteBtn.addEventListener('click', () => this.openDeleteModal(goal.id, goal.title));
+
+      this.goalsList.appendChild(node);
+    });
+
+    this.ensureTicker();
+  }
+
+  private exportBackup(): void {
+    const payload = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      goals: loadGoals(),
+      sessions: loadSessions(),
+      activeSession: getActiveSession()
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `mastery-backup-${timestamp}.json`;
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+      anchor.remove();
+    }, 0);
+  }
+
+  private importBackup(jsonText: string): void {
+    try {
+      const parsed = JSON.parse(jsonText);
+      if (!parsed || typeof parsed !== 'object') {
+        alert('Invalid backup format.');
+        return;
+      }
+      const { goals, sessions, activeSession } = parsed as {
+        goals?: Goal[];
+        sessions?: GoalSession[];
+        activeSession?: any;
+      };
+      if (!Array.isArray(goals) || !Array.isArray(sessions)) {
+        alert('Backup missing goals or sessions arrays.');
+        return;
+      }
+      if (!confirm('Importing will replace your current data. Continue?')) {
+        return;
+      }
+      localStorage.setItem(GOALS_KEY, JSON.stringify(goals));
+      localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+      if (activeSession) {
+        localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(activeSession));
+      } else {
+        localStorage.removeItem(ACTIVE_SESSION_KEY);
+      }
+      this.goals = loadGoals();
+      this.renderGoals();
+      alert('Backup imported successfully.');
+    } catch {
+      alert('Invalid JSON backup.');
+    }
+  }
+}
+
+export function initApp(): MasteryApp {
+  return new MasteryApp();
+}

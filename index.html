@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mastery — Goal Tracking & Analytics</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" />
+    
+  </head>
+  <body>
+    <a href="#content" class="small" style="position:absolute;left:-9999px;top:0;background:var(--focus);color:#000;padding:8px 12px;border-radius:8px;">Skip to content</a>
+    <header class="appbar" role="banner">
+      <div class="appbar-inner">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span class="material-symbols-outlined" aria-hidden="true">track_changes</span>
+          <h1 style="font-size:18px;margin:0;">Mastery</h1>
+        </div>
+        <nav aria-label="Top toolbar" style="display:flex;gap:8px;">
+          <button id="openAnalyticsBtn" class="btn btn-outline" title="Open Analytics" type="button"><span class="material-symbols-outlined">analytics</span><span class="label">Analytics</span></button>
+          <button id="exportBtn" class="btn btn-outline" title="Export Backup" type="button"><span class="material-symbols-outlined">download</span><span class="label">Export</span></button>
+          <input id="importInput" type="file" accept="application/json" style="display:none" />
+          <button id="importBtn" class="btn btn-outline" title="Import Backup" type="button"><span class="material-symbols-outlined">upload</span><span class="label">Import</span></button>
+          <button id="openAddGoalToolbar" class="btn btn-primary" type="button"><span class="material-symbols-outlined">add</span><span class="label">Add Goal</span></button>
+        </nav>
+      </div>
+    </header>
+    <main id="content" class="container" role="main">
+      <p class="subtitle">Mastery-focused goal tracking with live timers, manual entry, and analytics</p>
+      <div class="row">
+        <section class="card" style="flex: 1 1 100%;">
+          <h2 style="margin:0 0 12px;font-size:18px;">Your Goals</h2>
+          <div id="goalsList" class="list"></div>
+        </section>
+      </div>
+    </main>
+
+    <template id="goalItemTmpl">
+      <div class="goal">
+        <div class="stack">
+          <h3></h3>
+          <div class="progress" role="progressbar" aria-label="Goal progress"><span></span></div>
+          <div class="meta muted small"></div>
+          <div class="controls">
+            <button class="btn btn-primary startBtn" title="Start Timer"><span class="material-symbols-outlined">play_arrow</span><span class="label">Start</span></button>
+            <button class="btn btn-danger stopBtn" title="Stop Timer" disabled><span class="material-symbols-outlined filled">stop</span><span class="label">Stop</span></button>
+            <button class="btn btn-outline addTimeBtn" title="Add Time"><span class="material-symbols-outlined">add</span><span class="label">Add</span></button>
+            <button class="btn btn-outline progressBtn" title="Show Progress"><span class="material-symbols-outlined">query_stats</span><span class="label">Progress</span></button>
+            <button class="btn btn-outline deleteBtn" title="Delete"><span class="material-symbols-outlined">delete</span><span class="label">Delete</span></button>
+          </div>
+        </div>
+        <div class="right muted small liveTimer">00:00:00</div>
+      </div>
+    </template>
+
+    <!-- Add Goal Modal -->
+    <div id="addGoalModal" class="modal-backdrop" aria-hidden="true">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="addGoalTitle">
+        <header><h3 id="addGoalTitle">Add New Goal</h3></header>
+        <main>
+          <div class="stack">
+            <label class="small muted">Title</label>
+            <div style="position:relative;">
+              <input id="ag_title" type="text" placeholder="Goal title" autocomplete="off" />
+              <div id="ag_suggestions" style="position:absolute; top:100%; left:0; right:0; background:var(--pico-background-color, #fff); border:1px solid rgba(0,0,0,.2); border-radius:8px; display:none; max-height:220px; overflow:auto; z-index: 10;"></div>
+            </div>
+            <label class="small muted">Description (optional)</label>
+            <textarea id="ag_desc" rows="3" placeholder="Describe the goal"></textarea>
+            <label class="small muted">Total hours required</label>
+            <input id="ag_hours" type="number" min="0.1" step="0.1" placeholder="e.g. 200" />
+          </div>
+        </main>
+        <footer>
+          <div class="grid">
+            <button id="ag_cancel" class="secondary">Cancel</button>
+            <button id="ag_submit" class="primary" disabled>Add Goal</button>
+          </div>
+        </footer>
+      </div>
+    </div>
+
+    <!-- Add Time Modal -->
+    <div id="addTimeModal" class="modal-backdrop" aria-hidden="true">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="addTimeTitle">
+        <header><h3 id="addTimeTitle">Add Time</h3></header>
+        <main>
+          <div id="atm_error" class="small" style="display:none; color:#d32f2f; border:1px solid #f44336; padding:10px; border-radius:8px; background:#ffebee;"></div>
+          <div class="stack">
+            <label class="small muted">Hours to add</label>
+            <input id="atm_hours" type="number" min="0.1" step="0.1" placeholder="e.g. 1.5" />
+            <label class="small muted">Date (optional)</label>
+            <input id="atm_date" type="date" max="" />
+          </div>
+        </main>
+        <footer>
+          <div class="grid">
+            <button id="atm_cancel" class="secondary">Cancel</button>
+            <button id="atm_submit" class="primary" disabled>Add Time</button>
+          </div>
+        </footer>
+      </div>
+    </div>
+
+    <!-- Progress Modal -->
+    <div id="progressModal" class="modal-backdrop" aria-hidden="true">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="progressTitle" style="width:min(920px,95vw)">
+        <header><h3 id="progressTitle">Progress</h3></header>
+        <main>
+          <div class="stack">
+            <div id="pm_stats" class="small muted"></div>
+            <div id="pm_chart" style="width:100%; height:400px;"></div>
+          </div>
+        </main>
+        <footer>
+          <button id="pm_close">Close</button>
+        </footer>
+      </div>
+    </div>
+
+    <!-- Analytics Modal -->
+    <div id="analyticsModal" class="modal-backdrop" aria-hidden="true">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="analyticsTitle" style="width:min(1000px,96vw)">
+        <header><h3 id="analyticsTitle">Analytics</h3></header>
+        <main>
+          <div class="stack">
+            <div class="grid2">
+              <div>
+                <h4 style="margin:0 0 6px;">Daily Time Trend (All Goals)</h4>
+                <div id="an_trend" style="width:100%; height:360px;"></div>
+              </div>
+              <div>
+                <h4 style="margin:0 0 6px;">Time by Goal</h4>
+                <div id="an_pie" style="width:100%; height:360px;"></div>
+              </div>
+            </div>
+          </div>
+        </main>
+        <footer>
+          <button id="an_close">Close</button>
+        </footer>
+      </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal" class="modal-backdrop" aria-hidden="true">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="deleteTitle">
+        <header><h3 id="deleteTitle">Delete Goal</h3></header>
+        <main>
+          <p><strong id="del_question">Are you sure you want to delete this goal?</strong></p>
+          <p class="small muted" id="del_warning">This action cannot be undone. All tracked time will be lost.</p>
+        </main>
+        <footer>
+          <div class="grid">
+            <button id="del_cancel" class="secondary">Cancel</button>
+            <button id="del_confirm" class="contrast">Yes, Delete Goal</button>
+          </div>
+        </footer>
+      </div>
+    </div>
+
+    <button id="openAddGoalFab" class="fab" title="Add New Goal" aria-label="Add New Goal"><span class="material-symbols-outlined">add</span></button>
+
+    
+  
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

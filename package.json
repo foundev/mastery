@@ -1,0 +1,22 @@
+{
+  "name": "mastery-goal-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "echarts": "^5.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "jsdom": "^24.0.0",
+    "typescript": "^5.4.5",
+    "vite": "^6.0.0",
+    "vitest": "^1.6.0"
+  }
+}

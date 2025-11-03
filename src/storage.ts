@@ -1,0 +1,100 @@
+import { ACTIVE_SESSION_KEY, GOALS_KEY, SESSIONS_KEY } from './constants';
+import type { ActiveSession, Goal, GoalSession } from './types';
+
+const DEFAULT_TOTAL_HOURS = 60;
+
+function isNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function sanitizeGoal(raw: any): Goal {
+  return {
+    id: String(raw?.id ?? crypto.randomUUID()),
+    title: String(raw?.title ?? 'Untitled'),
+    description: String(raw?.description ?? ''),
+    totalHours: Number.isFinite(Number(raw?.totalHours))
+      ? Number(raw.totalHours)
+      : DEFAULT_TOTAL_HOURS,
+    totalTimeSpent: Number.isFinite(Number(raw?.totalTimeSpent))
+      ? Number(raw.totalTimeSpent)
+      : 0,
+    isActive: Boolean(raw?.isActive),
+    startTime: isNumber(raw?.startTime) ? raw.startTime : undefined,
+    createdAt: isNumber(raw?.createdAt) ? raw.createdAt : Date.now()
+  };
+}
+
+export function loadGoals(): Goal[] {
+  try {
+    const raw = localStorage.getItem(GOALS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item) => sanitizeGoal(item));
+  } catch {
+    return [];
+  }
+}
+
+export function saveGoals(goals: Goal[]): void {
+  localStorage.setItem(GOALS_KEY, JSON.stringify(goals));
+}
+
+export function loadSessions(): GoalSession[] {
+  try {
+    const raw = localStorage.getItem(SESSIONS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((value) => ({
+        goalId: String(value?.goalId ?? ''),
+        startTime: Number(value?.startTime ?? 0),
+        endTime: Number(value?.endTime ?? 0),
+        duration: Number(value?.duration ?? 0)
+      }))
+      .filter(
+        (session) =>
+          session.goalId &&
+          isNumber(session.startTime) &&
+          isNumber(session.endTime) &&
+          isNumber(session.duration)
+      );
+  } catch {
+    return [];
+  }
+}
+
+export function saveSessions(sessions: GoalSession[]): void {
+  localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+}
+
+export function appendSession(session: GoalSession): void {
+  const sessions = loadSessions();
+  sessions.push(session);
+  saveSessions(sessions);
+}
+
+export function saveActiveSession(session: ActiveSession | null): void {
+  if (session) {
+    localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(session));
+  } else {
+    localStorage.removeItem(ACTIVE_SESSION_KEY);
+  }
+}
+
+export function getActiveSession(): ActiveSession | null {
+  try {
+    const raw = localStorage.getItem(ACTIVE_SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    const goalId = String((parsed as ActiveSession).goalId ?? '');
+    const startTime = Number((parsed as ActiveSession).startTime ?? 0);
+    const lastUpdated = Number((parsed as ActiveSession).lastUpdated ?? 0);
+    if (!goalId || !isNumber(startTime) || !isNumber(lastUpdated)) return null;
+    return { goalId, startTime, lastUpdated };
+  } catch {
+    return null;
+  }
+}
