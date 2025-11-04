@@ -4,7 +4,11 @@ import { formatDuration, formatHMS, hoursToMilliseconds, millisecondsToHours, es
 import { hideModal, showModal } from './ui/modals';
 import { GOAL_TEMPLATES } from './templates';
 import { renderProgressChart, renderAnalyticsCharts } from './charts';
-import { buildAchievementDefinitions, resolveAchievementDefinition, sortAchievements } from './achievements';
+import {
+  buildAchievementDefinitions,
+  buildAchievementDefinitionsForGoal,
+  resolveAchievementDefinition
+} from './achievements';
 import { requireElement, requireTemplate } from './dom';
 import type { Goal, GoalSession, AchievementDefinition, AchievementRecord } from './types';
 
@@ -454,6 +458,7 @@ export class MasteryApp {
     this.goals.push(goal);
     saveGoals(this.goals);
     this.renderGoals();
+    this.evaluateAchievements(false);
   }
 
   private deleteGoal(goalId: string): void {
@@ -464,6 +469,7 @@ export class MasteryApp {
     this.goals = this.goals.filter((g) => g.id !== goalId);
     saveGoals(this.goals);
     this.renderGoals();
+    this.evaluateAchievements(false);
   }
 
   private startGoal(goalId: string): void {
@@ -601,133 +607,98 @@ export class MasteryApp {
     this.ensureTicker();
   }
 
-  private getAchievementDefinitionsForDisplay(): AchievementDefinition[] {
-    const definitions = [...this.achievementDefinitions];
-    const known = new Set(definitions.map((definition) => definition.id));
-    for (const record of this.achievements) {
-      if (!known.has(record.id)) {
-        const resolved = resolveAchievementDefinition(record.id);
-        if (resolved) {
-          definitions.push(resolved);
-          known.add(resolved.id);
-        }
-      }
-    }
-    return sortAchievements(definitions);
-  }
-
   private renderAchievementsView(): void {
     const list = this.achievementsModal.list;
-    const definitions = this.getAchievementDefinitionsForDisplay();
     const recordsById = new Map(this.achievements.map((record) => [record.id, record]));
     list.innerHTML = '';
+    const goals = this.goals
+      .slice()
+      .sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
+
+    if (goals.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'muted';
+      empty.textContent = 'Add a goal to start earning awards.';
+      list.appendChild(empty);
+      return;
+    }
+
     const fragment = document.createDocumentFragment();
-    definitions.forEach((definition) => {
-      const record = recordsById.get(definition.id);
-      const card = document.createElement('div');
-      card.className = `achievement-card ${record ? 'unlocked' : 'locked'}`;
-      const status = record
-        ? `Unlocked ${new Date(record.unlockedAt).toLocaleDateString()}`
-        : 'Locked';
-      card.innerHTML = `
-        <div class="achievement-header">
-          <span class="achievement-icon" aria-hidden="true">${definition.category === 'streak' ? '🔥' : '⚡'}</span>
-          <div>
-            <strong>${definition.title}</strong>
-            <div class="achievement-status">${status}</div>
+    goals.forEach((goal) => {
+      const group = document.createElement('section');
+      group.className = 'goal-achievement-group';
+
+      const heading = document.createElement('h4');
+      heading.className = 'goal-achievement-heading';
+      heading.textContent = goal.title;
+      group.appendChild(heading);
+
+      const grid = document.createElement('div');
+      grid.className = 'achievements-grid';
+      const definitions = buildAchievementDefinitionsForGoal(goal);
+      definitions.forEach((definition) => {
+        const record = recordsById.get(definition.id);
+        const card = document.createElement('div');
+        card.className = `achievement-card ${record ? 'unlocked' : 'locked'}`;
+        const status = record
+          ? `Unlocked ${new Date(record.unlockedAt).toLocaleDateString()}`
+          : `Locked • Reach ${definition.threshold}% completion`;
+        card.innerHTML = `
+          <div class="achievement-header">
+            <span class="achievement-icon" aria-hidden="true">🎯</span>
+            <div>
+              <strong>${definition.title}</strong>
+              <div class="achievement-status">${status}</div>
+            </div>
           </div>
-        </div>
-        <p class="achievement-description">${definition.description}</p>
-      `;
-      fragment.appendChild(card);
+          <p class="achievement-description">${definition.description}</p>
+        `;
+        grid.appendChild(card);
+      });
+
+      group.appendChild(grid);
+      fragment.appendChild(group);
     });
+
     list.appendChild(fragment);
   }
 
-  private computeAchievementStats(sessions: GoalSession[]): { longestStreak: number; maxDailyHours: number } {
-    if (sessions.length === 0) {
-      return { longestStreak: 0, maxDailyHours: 0 };
-    }
-
-    const dayTotals = new Map<number, number>();
-    sessions.forEach((session) => {
-      const day = new Date(session.startTime);
-      day.setHours(0, 0, 0, 0);
-      const key = day.getTime();
-      const hours = millisecondsToHours(session.duration);
-      dayTotals.set(key, (dayTotals.get(key) ?? 0) + hours);
-    });
-
-    const sortedDays = Array.from(dayTotals.keys()).sort((a, b) => a - b);
-    const DAY_MS = 86_400_000;
-    const DST_FLEX = 3_600_000;
-    let longest = 0;
-    let current = 0;
-    let previous: number | null = null;
-    for (const dayMs of sortedDays) {
-      if (previous === null) {
-        current = 1;
-      } else {
-        const diff = dayMs - previous;
-        if (diff >= DAY_MS - DST_FLEX && diff <= DAY_MS + DST_FLEX) {
-          current += 1;
-        } else if (dayMs !== previous) {
-          current = 1;
-        }
-      }
-      longest = Math.max(longest, current);
-      previous = dayMs;
-    }
-    if (longest === 0 && sortedDays.length > 0) {
-      longest = 1;
-    }
-
-    let maxHours = 0;
-    dayTotals.forEach((hours) => {
-      if (hours > maxHours) {
-        maxHours = hours;
-      }
-    });
-
-    return { longestStreak: longest, maxDailyHours: maxHours };
-  }
-
   private evaluateAchievements(notify: boolean): void {
-    const sessions = loadSessions();
-    const stats = this.computeAchievementStats(sessions);
-    const definitions = buildAchievementDefinitions(stats.longestStreak);
+    const definitions = buildAchievementDefinitions(this.goals);
     const definitionMap = new Map<string, AchievementDefinition>();
     definitions.forEach((def) => definitionMap.set(def.id, def));
 
-    const records = [...this.achievements];
-    const recordMap = new Map<string, AchievementRecord>();
-    records.forEach((record) => recordMap.set(record.id, record));
+    const validGoalIds = new Set(this.goals.map((goal) => goal.id));
+    const records = this.achievements.filter((record) => validGoalIds.has(record.goalId));
+    const recordMap = new Map(records.map((record) => [record.id, record]));
+    const goalMap = new Map(this.goals.map((goal) => [goal.id, goal]));
 
-    const meetsThreshold = (definition: AchievementDefinition): boolean => {
-      if (definition.category === 'streak') {
-        return stats.longestStreak >= definition.threshold;
-      }
-      return stats.maxDailyHours >= definition.threshold;
-    };
-
-    const newlyUnlocked: AchievementRecord[] = [];
     definitions.forEach((definition) => {
-      if (!recordMap.has(definition.id) && meetsThreshold(definition)) {
+      const goal = goalMap.get(definition.goalId);
+      if (!goal) {
+        return;
+      }
+      const totalMs = hoursToMilliseconds(goal.totalHours);
+      if (!(totalMs > 0)) {
+        return;
+      }
+      const completionRatio = goal.totalTimeSpent / totalMs;
+      const requiredRatio = definition.threshold / 100;
+      if (completionRatio >= requiredRatio && !recordMap.has(definition.id)) {
         const record: AchievementRecord = {
           id: definition.id,
+          goalId: goal.id,
           unlockedAt: Date.now(),
           seen: false
         };
         records.push(record);
-        recordMap.set(definition.id, record);
-        newlyUnlocked.push(record);
+        recordMap.set(record.id, record);
       }
     });
 
-    // Ensure we can render any previously unlocked achievement even if not part of the base set.
     for (const record of records) {
       if (!definitionMap.has(record.id)) {
-        const resolved = resolveAchievementDefinition(record.id);
+        const resolved = resolveAchievementDefinition(record.id, this.goals);
         if (resolved) {
           definitionMap.set(resolved.id, resolved);
         }
@@ -741,7 +712,7 @@ export class MasteryApp {
     if (notify) {
       const unseen = records.filter((record) => !record.seen);
       const unseenDefinitions = unseen
-        .map((record) => definitionMap.get(record.id) ?? resolveAchievementDefinition(record.id))
+        .map((record) => definitionMap.get(record.id) ?? resolveAchievementDefinition(record.id, this.goals))
         .filter((definition): definition is AchievementDefinition => Boolean(definition));
 
       if (unseenDefinitions.length > 0) {

@@ -1,94 +1,94 @@
-import type { AchievementCategory, AchievementDefinition } from './types';
+import type { AchievementDefinition, Goal } from './types';
 
-const STREAK_BASE: AchievementDefinition[] = [
-  {
-    id: 'streak-90',
-    title: 'Consistency Spark',
-    description: 'Log progress for 90 days in a row.',
-    category: 'streak',
-    threshold: 90
-  },
-  {
-    id: 'streak-365',
-    title: 'Year One Hero',
-    description: 'Keep your streak alive for a full year.',
-    category: 'streak',
-    threshold: 365
-  }
-];
+export const GOAL_PROGRESS_THRESHOLDS = [25, 50, 75, 100];
 
-const HOURS_THRESHOLDS = [1, 2, 4, 8, 12];
+const GOAL_PREFIX = 'goal:';
+const PROGRESS_SEGMENT = ':progress:';
 
-function createDailyHourDefinitions(): AchievementDefinition[] {
-  return HOURS_THRESHOLDS.map((hours) => ({
-    id: `hours-${hours}`,
-    title: `${hours} Hour${hours === 1 ? '' : 's'} In A Day`,
-    description: `Log at least ${hours} hour${hours === 1 ? '' : 's'} in a single day.`,
-    category: 'daily-hours' as AchievementCategory,
-    threshold: hours
-  }));
+function encodeGoalProgressId(goalId: string, percent: number): string {
+  return `${GOAL_PREFIX}${encodeURIComponent(goalId)}${PROGRESS_SEGMENT}${percent}`;
 }
 
-function createYearlyStreakDefinitions(maxYears: number): AchievementDefinition[] {
-  const defs: AchievementDefinition[] = [];
-  for (let year = 2; year <= maxYears; year++) {
-    const days = year * 365;
-    defs.push({
-      id: `streak-${days}`,
-      title: `${year} Year${year === 1 ? '' : 's'} Unbroken`,
-      description: `Maintain your streak for ${year} consecutive year${year === 1 ? '' : 's'}.`,
-      category: 'streak',
-      threshold: days
-    });
+function decodeGoalProgressId(id: string): { goalId: string; percent: number } | null {
+  if (!id.startsWith(GOAL_PREFIX)) {
+    return null;
   }
-  return defs;
+  const progressIndex = id.lastIndexOf(PROGRESS_SEGMENT);
+  if (progressIndex === -1) {
+    return null;
+  }
+  const encodedGoalId = id.substring(GOAL_PREFIX.length, progressIndex);
+  const percentText = id.substring(progressIndex + PROGRESS_SEGMENT.length);
+  const percent = Number(percentText);
+  if (!Number.isFinite(percent)) {
+    return null;
+  }
+  try {
+    const goalId = decodeURIComponent(encodedGoalId);
+    return { goalId, percent };
+  } catch {
+    return null;
+  }
 }
 
-export function buildAchievementDefinitions(longestStreak: number): AchievementDefinition[] {
-  const definitions: AchievementDefinition[] = [...STREAK_BASE];
-  const maxYears = Math.max(2, Math.ceil(longestStreak / 365));
-  definitions.push(...createYearlyStreakDefinitions(maxYears));
-  definitions.push(...createDailyHourDefinitions());
-  return definitions;
+function createGoalProgressDefinition(goal: Goal, percent: number): AchievementDefinition {
+  return {
+    id: encodeGoalProgressId(goal.id, percent),
+    goalId: goal.id,
+    title: `${percent}% Complete`,
+    description: `Reach ${percent}% of planned hours for "${goal.title}".`,
+    category: 'goal-progress',
+    threshold: percent
+  };
 }
 
-export function resolveAchievementDefinition(id: string): AchievementDefinition | undefined {
-  if (id.startsWith('streak-')) {
-    const days = Number(id.substring('streak-'.length));
-    if (Number.isFinite(days)) {
-      if (days === 90 || days === 365) {
-        return STREAK_BASE.find((def) => def.id === id);
-      }
-      const years = Math.round(days / 365);
-      return {
-        id,
-        title: `${years} Year${years === 1 ? '' : 's'} Unbroken`,
-        description: `Maintain your streak for ${years} consecutive year${years === 1 ? '' : 's'}.`,
-        category: 'streak',
-        threshold: days
-      };
-    }
-  }
-  if (id.startsWith('hours-')) {
-    const hours = Number(id.substring('hours-'.length));
-    if (Number.isFinite(hours)) {
-      return {
-        id,
-        title: `${hours} Hour${hours === 1 ? '' : 's'} In A Day`,
-        description: `Log at least ${hours} hour${hours === 1 ? '' : 's'} in a single day.`,
-        category: 'daily-hours',
-        threshold: hours
-      };
-    }
-  }
-  return undefined;
+export function buildAchievementDefinitionsForGoal(goal: Goal): AchievementDefinition[] {
+  return GOAL_PROGRESS_THRESHOLDS.map((percent) => createGoalProgressDefinition(goal, percent));
 }
 
-export function sortAchievements(definitions: AchievementDefinition[]): AchievementDefinition[] {
+export function buildAchievementDefinitions(goals: Goal[]): AchievementDefinition[] {
+  return goals.flatMap((goal) => buildAchievementDefinitionsForGoal(goal));
+}
+
+export function resolveAchievementDefinition(
+  id: string,
+  goals: Goal[]
+): AchievementDefinition | undefined {
+  const decoded = decodeGoalProgressId(id);
+  if (!decoded) {
+    return undefined;
+  }
+  const goal = goals.find((item) => item.id === decoded.goalId);
+  if (goal) {
+    return createGoalProgressDefinition(goal, decoded.percent);
+  }
+  return {
+    id,
+    goalId: decoded.goalId,
+    title: `${decoded.percent}% Complete`,
+    description: `Reach ${decoded.percent}% of planned hours for this goal.`,
+    category: 'goal-progress',
+    threshold: decoded.percent
+  };
+}
+
+export function sortAchievements(
+  definitions: AchievementDefinition[],
+  goals: Goal[]
+): AchievementDefinition[] {
+  const titleMap = new Map(goals.map((goal) => [goal.id, goal.title.toLowerCase()]));
   return definitions.slice().sort((a, b) => {
-    if (a.category === b.category) {
+    const titleA = titleMap.get(a.goalId) ?? '';
+    const titleB = titleMap.get(b.goalId) ?? '';
+    if (titleA === titleB) {
       return a.threshold - b.threshold;
     }
-    return a.category < b.category ? -1 : 1;
+    return titleA.localeCompare(titleB);
   });
+}
+
+export function decodeGoalAchievementId(
+  id: string
+): { goalId: string; percent: number } | null {
+  return decodeGoalProgressId(id);
 }

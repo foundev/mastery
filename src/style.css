@@ -501,6 +501,22 @@ header.appbar nav .backup-status { margin-left: auto; font-size: 12px; color: va
   gap: 16px;
 }
 
+.goal-achievement-group {
+  padding: 8px 0 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.goal-achievement-group:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+
+.goal-achievement-heading {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+
 .achievement-card {
   border: 1px solid var(--border);
   border-radius: 14px;

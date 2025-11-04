@@ -240,12 +240,12 @@ describe('MasteryApp integration', () => {
     expect(liveText).not.toBe('00:00:00');
   });
 
-  it('unlocks hourly achievements and shows toast', () => {
+  it('unlocks goal progress awards and shows toast', () => {
     const goal = {
       id: 'goal-1',
       title: 'Daily Focus',
       description: '',
-      totalHours: 100,
+      totalHours: 4,
       totalTimeSpent: 0,
       isActive: false,
       createdAt: Date.now()
@@ -255,7 +255,7 @@ describe('MasteryApp integration', () => {
     new MasteryApp();
 
     click('.addTimeBtn');
-    inputValue('#atm_hours', '2');
+    inputValue('#atm_hours', '1');
     click('#atm_submit');
 
     const toast = document.getElementById('achievementToast');
@@ -264,25 +264,25 @@ describe('MasteryApp integration', () => {
     const storedRaw = window.localStorage.getItem(ACHIEVEMENTS_KEY);
     expect(storedRaw).not.toBeNull();
     const stored = JSON.parse(storedRaw ?? '[]');
-    const hoursAchievement = stored.find((record: any) => record.id === 'hours-1');
-    expect(hoursAchievement).toBeTruthy();
-    expect(hoursAchievement.seen).toBe(true);
+    expect(Array.isArray(stored)).toBe(true);
+    const progressAward = stored.find((record: any) => record.id === 'goal:goal-1:progress:25');
+    expect(progressAward).toBeTruthy();
+    expect(progressAward.goalId).toBe('goal-1');
+    expect(progressAward.seen).toBe(true);
   });
 
-  it('only announces streak achievements once', () => {
-    const sessions: any[] = [];
-    const base = Date.UTC(2024, 4, 20);
-    for (let i = 0; i < 90; i++) {
-      const start = base - i * 24 * 60 * 60 * 1000;
-      sessions.push({
-        goalId: 'goal-1',
-        startTime: start,
-        endTime: start + 60 * 60 * 1000,
-        duration: 60 * 60 * 1000
-      });
-    }
-    window.localStorage.setItem(GOALS_KEY, JSON.stringify([]));
-    window.localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+  it('only announces goal awards once', () => {
+    const goal = {
+      id: 'goal-1',
+      title: 'Daily Focus',
+      description: '',
+      totalHours: 4,
+      totalTimeSpent: hoursToMilliseconds(1),
+      isActive: false,
+      createdAt: Date.now()
+    };
+    window.localStorage.setItem(GOALS_KEY, JSON.stringify([goal]));
+    window.localStorage.setItem(SESSIONS_KEY, JSON.stringify([]));
 
     new MasteryApp();
     const toast = document.getElementById('achievementToast');
@@ -294,9 +294,9 @@ describe('MasteryApp integration', () => {
     expect(storedRaw).not.toBeNull();
     const stored = JSON.parse(storedRaw ?? '[]');
     const ids = stored.map((record: any) => record.id);
-    expect(ids).toContain('streak-90');
-    const streak90 = stored.find((record: any) => record.id === 'streak-90');
-    expect(streak90?.seen).toBe(true);
+    expect(ids).toContain('goal:goal-1:progress:25');
+    const progressAward = stored.find((record: any) => record.id === 'goal:goal-1:progress:25');
+    expect(progressAward?.seen).toBe(true);
 
     document.body.innerHTML = TEMPLATE_HTML;
     new MasteryApp();
