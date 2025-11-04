@@ -1,6 +1,14 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import type { Goal, GoalSession } from '../types';
-import { estimateCompletion, formatDuration, formatHMS, hoursToMilliseconds, validateDailyLimit, formatTimeSince } from '../time';
+import {
+  calculateDailyStreak,
+  estimateCompletion,
+  formatDuration,
+  formatHMS,
+  hoursToMilliseconds,
+  validateDailyLimit,
+  formatTimeSince
+} from '../time';
 
 describe('time helpers', () => {
   afterEach(() => {
@@ -80,5 +88,38 @@ describe('time helpers', () => {
       expect(diffDays).toBeGreaterThan(0);
       expect(diffDays).toBeLessThanOrEqual(20);
     }
+  });
+
+  it('calculates consecutive day streaks for sessions', () => {
+    const now = new Date('2024-05-20T12:00:00Z');
+    const day = 24 * 60 * 60 * 1000;
+    const sessions: GoalSession[] = [
+      {
+        goalId: 'goal-1',
+        startTime: now.getTime() - day * 2 + 60 * 60 * 1000,
+        endTime: now.getTime() - day * 2 + 2 * 60 * 60 * 1000,
+        duration: 60 * 60 * 1000
+      },
+      {
+        goalId: 'goal-1',
+        startTime: now.getTime() - day + 30 * 60 * 1000,
+        endTime: now.getTime() - day + 2 * 60 * 60 * 1000,
+        duration: 90 * 60 * 1000
+      },
+      {
+        goalId: 'goal-1',
+        startTime: now.getTime() - 2 * 60 * 60 * 1000,
+        endTime: now.getTime() - 60 * 60 * 1000,
+        duration: 60 * 60 * 1000
+      }
+    ];
+
+    expect(calculateDailyStreak(sessions, now.getTime())).toBe(3);
+
+    const truncated = sessions.slice(0, 2);
+    expect(calculateDailyStreak(truncated, now.getTime())).toBe(2);
+
+    const empty: GoalSession[] = [];
+    expect(calculateDailyStreak(empty, now.getTime())).toBe(0);
   });
 });

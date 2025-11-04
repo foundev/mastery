@@ -1,6 +1,15 @@
 import { ACTIVE_SESSION_KEY, GOALS_KEY, SESSIONS_KEY } from './constants';
 import { appendSession, getActiveSession, getLastBackup, loadAchievements, loadGoals, loadSessions, saveAchievements, saveActiveSession, saveGoals, saveLastBackup } from './storage';
-import { formatDuration, formatHMS, hoursToMilliseconds, millisecondsToHours, estimateCompletion, validateDailyLimit, formatTimeSince } from './time';
+import {
+  calculateDailyStreak,
+  formatDuration,
+  formatHMS,
+  hoursToMilliseconds,
+  millisecondsToHours,
+  estimateCompletion,
+  validateDailyLimit,
+  formatTimeSince
+} from './time';
 import { hideModal, showModal } from './ui/modals';
 import { GOAL_TEMPLATES } from './templates';
 import { renderProgressChart, renderAnalyticsCharts } from './charts';
@@ -554,6 +563,16 @@ export class MasteryApp {
   private renderGoals(): void {
     this.goalsList.innerHTML = '';
 
+    const allSessions = loadSessions();
+    const sessionsByGoal = new Map<string, GoalSession[]>();
+    allSessions.forEach((session) => {
+      if (!sessionsByGoal.has(session.goalId)) {
+        sessionsByGoal.set(session.goalId, []);
+      }
+      sessionsByGoal.get(session.goalId)?.push(session);
+    });
+    const now = Date.now();
+
     this.goals.forEach((goal) => {
       const node = document.importNode(this.goalTemplate.content, true);
       const root = node.querySelector('.goal') as HTMLElement;
@@ -577,7 +596,22 @@ export class MasteryApp {
           ? Math.min(100, (millisecondsToHours(goal.totalTimeSpent) / goal.totalHours) * 100)
           : 0;
       progressBar.style.width = `${percent}%`;
-      meta.textContent = `${millisecondsToHours(goal.totalTimeSpent).toFixed(1)} / ${goal.totalHours} h (${percent.toFixed(0)}%)`;
+      const goalSessions = sessionsByGoal.get(goal.id) ?? [];
+      const combinedSessions =
+        goal.isActive && goal.startTime
+          ? [
+              ...goalSessions,
+              {
+                goalId: goal.id,
+                startTime: goal.startTime,
+                endTime: now,
+                duration: now - goal.startTime
+              }
+            ]
+          : goalSessions;
+      const streak = calculateDailyStreak(combinedSessions, now);
+      const streakLabel = `Streak: ${streak} ${streak === 1 ? 'day' : 'days'}`;
+      meta.textContent = `${millisecondsToHours(goal.totalTimeSpent).toFixed(1)} / ${goal.totalHours} h (${percent.toFixed(0)}%) • ${streakLabel}`;
       liveTimer.textContent =
         goal.isActive && goal.startTime
           ? formatHMS((Date.now() - goal.startTime) / 1000)
