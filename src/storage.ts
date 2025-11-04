@@ -19,6 +19,7 @@ function sanitizeGoal(raw: any): Goal {
       ? Number(raw.totalTimeSpent)
       : 0,
     isActive: Boolean(raw?.isActive),
+    isArchived: Boolean(raw?.isArchived),
     startTime: isNumber(raw?.startTime) ? raw.startTime : undefined,
     createdAt: isNumber(raw?.createdAt) ? raw.createdAt : Date.now()
   };

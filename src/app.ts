@@ -35,6 +35,10 @@ export class MasteryApp {
 
   private readonly goalsList = requireElement<HTMLDivElement>('goalsList');
   private readonly goalTemplate = requireTemplate('goalItemTmpl');
+  private readonly archivedSection = requireElement<HTMLDivElement>('archivedSection');
+  private readonly archivedList = requireElement<HTMLDivElement>('archivedList');
+  private readonly archivedEmpty = requireElement<HTMLParagraphElement>('archivedEmpty');
+  private readonly archivedGoalTemplate = requireTemplate('archivedGoalItemTmpl');
 
   private readonly modals = {
     addGoal: requireElement<HTMLDivElement>('addGoalModal'),
@@ -267,7 +271,7 @@ export class MasteryApp {
     const saved = getActiveSession();
     if (!saved) return;
     const goal = this.goals.find((g) => g.id === saved.goalId);
-    if (!goal) {
+    if (!goal || goal.isArchived) {
       saveActiveSession(null);
       return;
     }
@@ -467,6 +471,7 @@ export class MasteryApp {
       totalHours,
       totalTimeSpent: 0,
       isActive: false,
+      isArchived: false,
       createdAt: Date.now()
     };
     this.goals.push(goal);
@@ -486,6 +491,41 @@ export class MasteryApp {
     this.evaluateAchievements(false);
   }
 
+  private archiveGoal(goalId: string): void {
+    const goal = this.goals.find((g) => g.id === goalId);
+    if (!goal) return;
+    if (goal.isActive) {
+      this.stopGoal();
+    }
+    this.goals = this.goals.map((g) =>
+      g.id === goalId
+        ? {
+            ...g,
+            isActive: false,
+            startTime: undefined,
+            isArchived: true
+          }
+        : g
+    );
+    saveGoals(this.goals);
+    this.renderGoals();
+  }
+
+  private restoreGoal(goalId: string): void {
+    const index = this.goals.findIndex((g) => g.id === goalId);
+    if (index === -1) return;
+    const [goal] = this.goals.splice(index, 1);
+    const restored: Goal = {
+      ...goal,
+      isArchived: false,
+      isActive: false,
+      startTime: undefined
+    };
+    this.goals.unshift(restored);
+    saveGoals(this.goals);
+    this.renderGoals();
+  }
+
   private startGoal(goalId: string): void {
     // ensure only one session running
     const active = this.goals.find((g) => g.isActive);
@@ -497,6 +537,7 @@ export class MasteryApp {
     }
     const goalIndex = this.goals.findIndex((g) => g.id === goalId);
     if (goalIndex === -1) return;
+    if (this.goals[goalIndex].isArchived) return;
     const [goal] = this.goals.splice(goalIndex, 1);
     goal.isActive = true;
     goal.startTime = Date.now();
@@ -542,7 +583,7 @@ export class MasteryApp {
   }
 
   private ensureTicker(): void {
-    const anyActive = this.goals.some((goal) => goal.isActive);
+    const anyActive = this.goals.some((goal) => goal.isActive && !goal.isArchived);
     if (anyActive && this.tickHandle == null) {
       this.tickHandle = window.setInterval(() => this.updateLiveTimers(), 1000);
     } else if (!anyActive && this.tickHandle != null) {
@@ -552,18 +593,20 @@ export class MasteryApp {
   }
 
   private updateLiveTimers(): void {
-    const goalNodes = this.goalsList.querySelectorAll<HTMLElement>('.goal');
-    this.goals.forEach((goal, index) => {
-      if (!goal.isActive || !goal.startTime) return;
-      const live = goalNodes[index]?.querySelector<HTMLElement>('.liveTimer');
+    const activeGoals = this.goals.filter((goal) => goal.isActive && !goal.isArchived && goal.startTime);
+    activeGoals.forEach((goal) => {
+      const node = this.goalsList.querySelector<HTMLElement>(`.goal[data-goal-id="${goal.id}"]`);
+      if (!node) return;
+      const live = node.querySelector<HTMLElement>('.liveTimer');
       if (live) {
-        live.textContent = formatHMS((Date.now() - goal.startTime) / 1000);
+        live.textContent = formatHMS((Date.now() - (goal.startTime ?? Date.now())) / 1000);
       }
     });
   }
 
   private renderGoals(): void {
     this.goalsList.innerHTML = '';
+    this.archivedList.innerHTML = '';
 
     const allSessions = loadSessions();
     const sessionsByGoal = new Map<string, GoalSession[]>();
@@ -573,11 +616,14 @@ export class MasteryApp {
       }
       sessionsByGoal.get(session.goalId)?.push(session);
     });
-    const now = Date.now();
 
-    this.goals.forEach((goal) => {
+    const now = Date.now();
+    const activeGoals = this.goals.filter((goal) => !goal.isArchived);
+    const archivedGoals = this.goals.filter((goal) => goal.isArchived);
+
+    activeGoals.forEach((goal) => {
       const node = document.importNode(this.goalTemplate.content, true);
-      const root = node.querySelector('.goal') as HTMLElement;
+      const root = node.querySelector('.goal') as HTMLElement | null;
       const title = node.querySelector('h3');
       const progressBar = node.querySelector<HTMLElement>('.progress > span');
       const meta = node.querySelector<HTMLElement>('.meta');
@@ -586,12 +632,26 @@ export class MasteryApp {
       const stopBtn = node.querySelector<HTMLButtonElement>('.stopBtn');
       const addTimeBtn = node.querySelector<HTMLButtonElement>('.addTimeBtn');
       const progressBtn = node.querySelector<HTMLButtonElement>('.progressBtn');
+      const archiveBtn = node.querySelector<HTMLButtonElement>('.archiveBtn');
       const deleteBtn = node.querySelector<HTMLButtonElement>('.deleteBtn');
 
-      if (!root || !title || !progressBar || !meta || !liveTimer || !startBtn || !stopBtn || !addTimeBtn || !progressBtn || !deleteBtn) {
+      if (
+        !root ||
+        !title ||
+        !progressBar ||
+        !meta ||
+        !liveTimer ||
+        !startBtn ||
+        !stopBtn ||
+        !addTimeBtn ||
+        !progressBtn ||
+        !archiveBtn ||
+        !deleteBtn
+      ) {
         return;
       }
 
+      root.dataset.goalId = goal.id;
       title.textContent = goal.title;
       const percent =
         goal.totalHours > 0
@@ -621,9 +681,15 @@ export class MasteryApp {
 
       startBtn.disabled = goal.isActive;
       stopBtn.disabled = !goal.isActive;
+      archiveBtn.disabled = goal.isActive;
+      archiveBtn.title = goal.isActive
+        ? 'Stop the timer before archiving'
+        : 'Archive Goal';
 
       if (goal.isActive) {
         root.classList.add('active');
+      } else {
+        root.classList.remove('active');
       }
 
       const ariaProgress = root.querySelector('.progress') as HTMLElement | null;
@@ -640,10 +706,59 @@ export class MasteryApp {
       stopBtn.addEventListener('click', () => this.stopGoal());
       addTimeBtn.addEventListener('click', () => this.openAddTimeModal(goal.id));
       progressBtn.addEventListener('click', () => this.openProgressModal(goal.id));
+      archiveBtn.addEventListener('click', () => this.archiveGoal(goal.id));
       deleteBtn.addEventListener('click', () => this.openDeleteModal(goal.id, goal.title));
 
       this.goalsList.appendChild(node);
     });
+
+    archivedGoals.forEach((goal) => {
+      const node = document.importNode(this.archivedGoalTemplate.content, true);
+      const root = node.querySelector('.goal') as HTMLElement | null;
+      const title = node.querySelector('h3');
+      const progressBar = node.querySelector<HTMLElement>('.progress > span');
+      const meta = node.querySelector<HTMLElement>('.meta');
+      const progressBtn = node.querySelector<HTMLButtonElement>('.progressBtn');
+      const restoreBtn = node.querySelector<HTMLButtonElement>('.restoreBtn');
+      const deleteBtn = node.querySelector<HTMLButtonElement>('.deleteBtn');
+      const badge = node.querySelector<HTMLElement>('.archivedBadge');
+
+      if (!root || !title || !progressBar || !meta || !progressBtn || !restoreBtn || !deleteBtn || !badge) {
+        return;
+      }
+
+      root.dataset.goalId = goal.id;
+      title.textContent = goal.title;
+      const percent =
+        goal.totalHours > 0
+          ? Math.min(100, (millisecondsToHours(goal.totalTimeSpent) / goal.totalHours) * 100)
+          : 0;
+      progressBar.style.width = `${percent}%`;
+      const goalSessions = sessionsByGoal.get(goal.id) ?? [];
+      const streak = calculateDailyStreak(goalSessions, now);
+      const streakLabel = `Streak: ${streak} ${streak === 1 ? 'day' : 'days'}`;
+      meta.textContent = `${millisecondsToHours(goal.totalTimeSpent).toFixed(1)} / ${goal.totalHours} h (${percent.toFixed(0)}%) • ${streakLabel}`;
+      badge.textContent = 'Archived';
+
+      const ariaProgress = root.querySelector('.progress') as HTMLElement | null;
+      if (ariaProgress) {
+        ariaProgress.setAttribute('aria-valuemin', '0');
+        ariaProgress.setAttribute('aria-valuemax', String(Math.max(1, goal.totalHours)));
+        ariaProgress.setAttribute(
+          'aria-valuenow',
+          millisecondsToHours(goal.totalTimeSpent).toFixed(1)
+        );
+      }
+
+      restoreBtn.addEventListener('click', () => this.restoreGoal(goal.id));
+      progressBtn.addEventListener('click', () => this.openProgressModal(goal.id));
+      deleteBtn.addEventListener('click', () => this.openDeleteModal(goal.id, goal.title));
+
+      this.archivedList.appendChild(node);
+    });
+
+    this.archivedSection.style.display = archivedGoals.length > 0 ? '' : 'none';
+    this.archivedEmpty.style.display = archivedGoals.length > 0 ? '' : 'none';
 
     this.ensureTicker();
   }

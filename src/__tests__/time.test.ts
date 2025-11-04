@@ -71,6 +71,7 @@ describe('time helpers', () => {
       totalHours: 50,
       totalTimeSpent: hoursToMilliseconds(10),
       isActive: false,
+      isArchived: false,
       createdAt: now.getTime()
     };
 
