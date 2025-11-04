@@ -495,10 +495,12 @@ export class MasteryApp {
     if (active && active.id !== goalId) {
       this.stopGoal();
     }
-    const goal = this.goals.find((g) => g.id === goalId);
-    if (!goal) return;
+    const goalIndex = this.goals.findIndex((g) => g.id === goalId);
+    if (goalIndex === -1) return;
+    const [goal] = this.goals.splice(goalIndex, 1);
     goal.isActive = true;
     goal.startTime = Date.now();
+    this.goals.unshift(goal);
     saveGoals(this.goals);
     saveActiveSession({
       goalId: goal.id,
