@@ -36,7 +36,11 @@ export interface DailyLimitValidation {
   message?: string;
 }
 
-export type AchievementCategory = 'streak' | 'daily-hours';
+export type AchievementCategory =
+  | 'streak'
+  | 'daily-hours'
+  | 'goal-streak'
+  | 'goal-total-time';
 
 export interface AchievementDefinition {
   id: string;
@@ -44,10 +48,18 @@ export interface AchievementDefinition {
   description: string;
   category: AchievementCategory;
   threshold: number;
+  goalId?: string;
+  goalTitle?: string;
 }
 
 export interface AchievementRecord {
   id: string;
   unlockedAt: number;
   seen: boolean;
+}
+
+export interface GoalAchievementStats {
+  longestStreak: number;
+  maxDailyHours: number;
+  totalHours: number;
 }
