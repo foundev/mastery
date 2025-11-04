@@ -5,6 +5,7 @@ export interface Goal {
   totalHours: number;
   totalTimeSpent: number;
   isActive: boolean;
+  isArchived: boolean;
   startTime?: number;
   createdAt: number;
 }

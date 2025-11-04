@@ -95,6 +95,11 @@ header.appbar nav .backup-status { margin-left: auto; font-size: 12px; color: va
   border-color: color-mix(in oklab, var(--border) 60%, var(--primary) 40%);
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.25);
 }
+.goal.archived {
+  border-style: dashed;
+  opacity: 0.85;
+  background: color-mix(in oklab, var(--panel) 96%, transparent 4%);
+}
 .goal.active {
   border-color: color-mix(in oklab, var(--primary) 70%, var(--border) 30%);
   background: color-mix(in oklab, var(--primary) 20%, var(--panel) 80%);
@@ -118,6 +123,8 @@ header.appbar nav .backup-status { margin-left: auto; font-size: 12px; color: va
       .progress { height: 12px; background: color-mix(in oklab, var(--panel) 70%, var(--text) 30%); border-radius: 999px; overflow: hidden; border: 1px solid var(--border); }
       .progress > span { display: block; height: 100%; background: var(--success); width: 0%; transition: width .2s ease; }
       .list { display: grid; gap: 20px; }
+      .archived-section { display: grid; gap: 12px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border); }
+      .archived-header { display: grid; gap: 4px; }
       .stack { display: grid; gap: 10px; }
       .spacer { height: 8px; }
       .right { text-align: right; }
@@ -132,6 +139,7 @@ header.appbar nav .backup-status { margin-left: auto; font-size: 12px; color: va
       .controls button:disabled .material-symbols-outlined { opacity: .9; }
       .startBtn .material-symbols-outlined { color: #fff; }
       .stopBtn .material-symbols-outlined { color: #fff; }
+      .archivedBadge { font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
       /* Modal styles */
       .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; align-items: center; justify-content: center; z-index: 1000; opacity: 0; transition: opacity .2s ease; }
       .modal-backdrop[aria-hidden="false"] { opacity: 1; }

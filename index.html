@@ -36,6 +36,15 @@
         <section class="card" style="flex: 1 1 100%;">
           <h2 style="margin:0 0 12px;font-size:18px;">Your Goals</h2>
           <div id="goalsList" class="list"></div>
+          <div id="archivedSection" class="archived-section" style="display:none;">
+            <div class="archived-header">
+              <h3 style="margin:0;font-size:16px;">Archived Goals</h3>
+              <p id="archivedEmpty" class="small muted" style="margin:4px 0 0;">
+                Archived goals are hidden from your active list. Restore them anytime.
+              </p>
+            </div>
+            <div id="archivedList" class="list"></div>
+          </div>
         </section>
       </div>
     </main>
@@ -51,10 +60,27 @@
             <button class="btn btn-danger stopBtn" title="Stop Timer" disabled><span class="material-symbols-outlined filled">stop</span><span class="label">Stop</span></button>
             <button class="btn btn-outline addTimeBtn" title="Add Time"><span class="material-symbols-outlined">add</span><span class="label">Add</span></button>
             <button class="btn btn-outline progressBtn" title="Show Progress"><span class="material-symbols-outlined">query_stats</span><span class="label">Progress</span></button>
+            <button class="btn btn-outline archiveBtn" title="Archive Goal"><span class="material-symbols-outlined">archive</span><span class="label">Archive</span></button>
             <button class="btn btn-outline deleteBtn" title="Delete"><span class="material-symbols-outlined">delete</span><span class="label">Delete</span></button>
           </div>
         </div>
         <div class="right muted small liveTimer">00:00:00</div>
+      </div>
+    </template>
+
+    <template id="archivedGoalItemTmpl">
+      <div class="goal archived">
+        <div class="stack">
+          <h3></h3>
+          <div class="progress" role="progressbar" aria-label="Goal progress"><span></span></div>
+          <div class="meta muted small"></div>
+          <div class="controls">
+            <button class="btn btn-outline restoreBtn" title="Restore Goal"><span class="material-symbols-outlined">unarchive</span><span class="label">Restore</span></button>
+            <button class="btn btn-outline progressBtn" title="Show Progress"><span class="material-symbols-outlined">query_stats</span><span class="label">Progress</span></button>
+            <button class="btn btn-outline deleteBtn" title="Delete"><span class="material-symbols-outlined">delete</span><span class="label">Delete</span></button>
+          </div>
+        </div>
+        <div class="right muted small archivedBadge">Archived</div>
       </div>
     </template>
 

@@ -38,6 +38,7 @@ describe('storage helpers', () => {
         totalHours: 'not-a-number',
         totalTimeSpent: '10',
         isActive: 'truthy-string',
+        isArchived: 'nope',
         startTime: 'nope',
         createdAt: 'yesterday'
       }
@@ -48,6 +49,7 @@ describe('storage helpers', () => {
     expect(goal.totalHours).toBe(60);
     expect(goal.totalTimeSpent).toBe(10);
     expect(goal.isActive).toBeTypeOf('boolean');
+    expect(goal.isArchived).toBeTypeOf('boolean');
     expect(goal.startTime).toBeUndefined();
     expect(goal.createdAt).toBeTypeOf('number');
   });
@@ -61,6 +63,7 @@ describe('storage helpers', () => {
         totalHours: 100,
         totalTimeSpent: 50_000,
         isActive: false,
+        isArchived: false,
         createdAt: Date.now()
       }
     ];

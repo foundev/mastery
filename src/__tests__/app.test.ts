@@ -18,6 +18,10 @@ const TEMPLATE_HTML = `
   <button id="openAddGoalFab" type="button"></button>
   <main>
     <div id="goalsList"></div>
+    <div id="archivedSection" style="display:none;">
+      <p id="archivedEmpty"></p>
+      <div id="archivedList"></div>
+    </div>
   </main>
   <template id="goalItemTmpl">
     <div class="goal">
@@ -30,10 +34,26 @@ const TEMPLATE_HTML = `
           <button class="btn btn-danger stopBtn" type="button" disabled><span class="label">Stop</span></button>
           <button class="btn btn-outline addTimeBtn" type="button"><span class="label">Add</span></button>
           <button class="btn btn-outline progressBtn" type="button"><span class="label">Progress</span></button>
+          <button class="btn btn-outline archiveBtn" type="button"><span class="label">Archive</span></button>
           <button class="btn btn-outline deleteBtn" type="button"><span class="label">Delete</span></button>
         </div>
       </div>
       <div class="right muted small liveTimer">00:00:00</div>
+    </div>
+  </template>
+  <template id="archivedGoalItemTmpl">
+    <div class="goal archived">
+      <div class="stack">
+        <h3></h3>
+        <div class="progress" role="progressbar" aria-label="Goal progress"><span></span></div>
+        <div class="meta muted small"></div>
+        <div class="controls">
+          <button class="btn btn-outline restoreBtn" type="button"><span class="label">Restore</span></button>
+          <button class="btn btn-outline progressBtn" type="button"><span class="label">Progress</span></button>
+          <button class="btn btn-outline deleteBtn" type="button"><span class="label">Delete</span></button>
+        </div>
+      </div>
+      <div class="right muted small archivedBadge">Archived</div>
     </div>
   </template>
   <div id="addGoalModal" class="modal-backdrop" aria-hidden="true">
@@ -140,6 +160,7 @@ describe('MasteryApp integration', () => {
       totalHours: 10,
       totalTimeSpent: hoursToMilliseconds(2),
       isActive: false,
+      isArchived: false,
       createdAt: Date.now()
     };
     window.localStorage.setItem(GOALS_KEY, JSON.stringify([storedGoal]));
@@ -161,6 +182,7 @@ describe('MasteryApp integration', () => {
     const goals = JSON.parse(window.localStorage.getItem(GOALS_KEY) ?? '[]');
     expect(goals.length).toBe(1);
     expect(goals[0].title).toBe('New Goal');
+    expect(goals[0].isArchived).toBe(false);
     expect(document.querySelectorAll('.goal').length).toBe(1);
     expect(app).toBeInstanceOf(MasteryApp);
   });
@@ -173,6 +195,7 @@ describe('MasteryApp integration', () => {
       totalHours: 10,
       totalTimeSpent: 0,
       isActive: false,
+      isArchived: false,
       createdAt: Date.now()
     };
     window.localStorage.setItem(GOALS_KEY, JSON.stringify([goal]));
@@ -187,6 +210,7 @@ describe('MasteryApp integration', () => {
     expect(sessions[0].duration).toBeGreaterThan(0);
     const updatedGoals = JSON.parse(window.localStorage.getItem(GOALS_KEY) ?? '[]');
     expect(updatedGoals[0].totalTimeSpent).toBeGreaterThan(0);
+    expect(updatedGoals[0].isArchived).toBe(false);
     expect(app).toBeInstanceOf(MasteryApp);
   });
 
@@ -200,6 +224,7 @@ describe('MasteryApp integration', () => {
       totalHours: 10,
       totalTimeSpent: hoursToMilliseconds(3),
       isActive: false,
+      isArchived: false,
       createdAt: now
     };
     const sessions = [
@@ -237,6 +262,7 @@ describe('MasteryApp integration', () => {
       totalHours: 10,
       totalTimeSpent: 0,
       isActive: false,
+      isArchived: false,
       createdAt: Date.now()
     };
     window.localStorage.setItem(GOALS_KEY, JSON.stringify([goal]));
@@ -247,8 +273,34 @@ describe('MasteryApp integration', () => {
     click('#atm_submit');
     const updatedGoals = JSON.parse(window.localStorage.getItem(GOALS_KEY) ?? '[]');
     expect(updatedGoals[0].totalTimeSpent).toBe(hoursToMilliseconds(1.5));
+    expect(updatedGoals[0].isArchived).toBe(false);
     const sessions = JSON.parse(window.localStorage.getItem(SESSIONS_KEY) ?? '[]');
     expect(sessions.length).toBe(1);
+  });
+
+  it('archives and restores a goal', () => {
+    const goal = {
+      id: 'goal-1',
+      title: 'Hide Me',
+      description: '',
+      totalHours: 10,
+      totalTimeSpent: 0,
+      isActive: false,
+      isArchived: false,
+      createdAt: Date.now()
+    };
+    window.localStorage.setItem(GOALS_KEY, JSON.stringify([goal]));
+    window.localStorage.setItem(SESSIONS_KEY, JSON.stringify([]));
+    new MasteryApp();
+    click('.archiveBtn');
+    let storedGoals = JSON.parse(window.localStorage.getItem(GOALS_KEY) ?? '[]');
+    expect(storedGoals[0].isArchived).toBe(true);
+    expect(document.querySelectorAll('#goalsList .goal').length).toBe(0);
+    click('#archivedList .restoreBtn');
+    storedGoals = JSON.parse(window.localStorage.getItem(GOALS_KEY) ?? '[]');
+    expect(storedGoals[0].isArchived).toBe(false);
+    expect(document.querySelectorAll('#goalsList .goal').length).toBe(1);
+    expect(document.querySelector('#archivedList .goal')).toBeNull();
   });
 
   it('updates backup timestamp after exporting data', () => {
@@ -274,6 +326,7 @@ describe('MasteryApp integration', () => {
       totalTimeSpent: 0,
       isActive: true,
       startTime,
+      isArchived: false,
       createdAt: Date.now()
     };
     window.localStorage.setItem(GOALS_KEY, JSON.stringify([goal]));
@@ -292,6 +345,7 @@ describe('MasteryApp integration', () => {
       totalHours: 4,
       totalTimeSpent: 0,
       isActive: false,
+      isArchived: false,
       createdAt: Date.now()
     };
     window.localStorage.setItem(GOALS_KEY, JSON.stringify([goal]));

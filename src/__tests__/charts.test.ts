@@ -29,8 +29,26 @@ describe('chart helpers', () => {
       { goalId: 'g2', startTime: Date.UTC(2024, 4, 2), endTime: Date.UTC(2024, 4, 2, 2), duration: 7_200_000 }
     ];
     const goals: Goal[] = [
-      { id: 'g1', title: 'One', description: '', totalHours: 10, totalTimeSpent: 1, isActive: false, createdAt: Date.now() },
-      { id: 'g2', title: 'Two', description: '', totalHours: 10, totalTimeSpent: 1, isActive: false, createdAt: Date.now() }
+      {
+        id: 'g1',
+        title: 'One',
+        description: '',
+        totalHours: 10,
+        totalTimeSpent: 1,
+        isActive: false,
+        isArchived: false,
+        createdAt: Date.now()
+      },
+      {
+        id: 'g2',
+        title: 'Two',
+        description: '',
+        totalHours: 10,
+        totalTimeSpent: 1,
+        isActive: false,
+        isArchived: false,
+        createdAt: Date.now()
+      }
     ];
     const charts = renderAnalyticsCharts(trend, pie, sessions, goals);
     expect(charts.trend.setOption).toHaveBeenCalled();
