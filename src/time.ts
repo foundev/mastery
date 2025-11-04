@@ -1,5 +1,28 @@
 import type { DailyLimitValidation, Goal, GoalSession } from './types';
 
+const MS_PER_DAY = 86_400_000;
+
+function startOfDay(timestamp: number): number {
+  const date = new Date(timestamp);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+}
+
+function formatDateKey(timestamp: number): string {
+  const date = new Date(timestamp);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function parseDateKey(key: string): number {
+  const [year, month, day] = key.split('-').map((value) => Number.parseInt(value, 10));
+  const date = new Date(year, (month ?? 1) - 1, day ?? 1);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+}
+
 export function millisecondsToHours(ms: number): number {
   return ms / 3_600_000;
 }
@@ -71,6 +94,67 @@ export function estimateCompletion(
   const estimate = new Date();
   estimate.setDate(estimate.getDate() + days);
   return estimate;
+}
+
+export function calculateDailyStreak(
+  sessions: GoalSession[],
+  now: number = Date.now()
+): number {
+  if (!Array.isArray(sessions) || sessions.length === 0) {
+    return 0;
+  }
+
+  const todayStart = startOfDay(now);
+  const todayKey = formatDateKey(todayStart);
+  const dayKeys = new Set<string>();
+
+  sessions.forEach((session) => {
+    const rawStart = Number(session.startTime);
+    const rawEnd = Number(session.endTime);
+    if (!Number.isFinite(rawStart) || !Number.isFinite(rawEnd)) {
+      return;
+    }
+    const sessionEnd = Math.min(rawEnd, now);
+    const sessionStart = Math.min(rawStart, sessionEnd);
+    if (sessionEnd <= sessionStart) {
+      return;
+    }
+
+    let cursor = startOfDay(sessionStart);
+    const lastDay = startOfDay(sessionEnd);
+    while (cursor <= lastDay) {
+      const dayStart = cursor;
+      const dayEnd = dayStart + MS_PER_DAY;
+      const overlapStart = Math.max(sessionStart, dayStart);
+      const overlapEnd = Math.min(sessionEnd, dayEnd);
+      if (overlapEnd - overlapStart > 0) {
+        dayKeys.add(formatDateKey(dayStart));
+      }
+      cursor += MS_PER_DAY;
+    }
+  });
+
+  const filtered = Array.from(dayKeys).filter((key) => key <= todayKey);
+  if (filtered.length === 0) {
+    return 0;
+  }
+
+  filtered.sort((a, b) => (a > b ? -1 : a < b ? 1 : 0));
+
+  let streak = 1;
+  let previous = parseDateKey(filtered[0]);
+
+  for (let index = 1; index < filtered.length; index += 1) {
+    const current = parseDateKey(filtered[index]);
+    if (previous - current === MS_PER_DAY) {
+      streak += 1;
+      previous = current;
+    } else {
+      break;
+    }
+  }
+
+  return streak;
 }
 
 export function validateDailyLimit(

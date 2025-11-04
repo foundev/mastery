@@ -190,6 +190,45 @@ describe('MasteryApp integration', () => {
     expect(app).toBeInstanceOf(MasteryApp);
   });
 
+  it('shows consecutive day streaks on goal cards', () => {
+    const now = new Date('2024-05-20T12:00:00Z').getTime();
+    const day = 24 * 60 * 60 * 1000;
+    const goal = {
+      id: 'goal-1',
+      title: 'Streak Goal',
+      description: '',
+      totalHours: 10,
+      totalTimeSpent: hoursToMilliseconds(3),
+      isActive: false,
+      createdAt: now
+    };
+    const sessions = [
+      {
+        goalId: 'goal-1',
+        startTime: now - day * 2 + 60 * 60 * 1000,
+        endTime: now - day * 2 + 2 * 60 * 60 * 1000,
+        duration: hoursToMilliseconds(1)
+      },
+      {
+        goalId: 'goal-1',
+        startTime: now - day + 30 * 60 * 1000,
+        endTime: now - day + 90 * 60 * 1000,
+        duration: hoursToMilliseconds(1)
+      },
+      {
+        goalId: 'goal-1',
+        startTime: now - 2 * 60 * 60 * 1000,
+        endTime: now - 60 * 60 * 1000,
+        duration: hoursToMilliseconds(1)
+      }
+    ];
+    window.localStorage.setItem(GOALS_KEY, JSON.stringify([goal]));
+    window.localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+    new MasteryApp();
+    const meta = document.querySelector('.goal .meta')?.textContent ?? '';
+    expect(meta).toContain('Streak: 3 days');
+  });
+
   it('allows manual time entry with validation feedback reset', () => {
     const goal = {
       id: 'goal-1',
