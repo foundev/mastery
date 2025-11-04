@@ -4,11 +4,7 @@ import { formatDuration, formatHMS, hoursToMilliseconds, millisecondsToHours, es
 import { hideModal, showModal } from './ui/modals';
 import { GOAL_TEMPLATES } from './templates';
 import { renderProgressChart, renderAnalyticsCharts } from './charts';
-import {
-  buildAchievementDefinitions,
-  buildAchievementDefinitionsForGoal,
-  resolveAchievementDefinition
-} from './achievements';
+import { buildAchievementDefinitions, resolveAchievementDefinition } from './achievements';
 import { requireElement, requireTemplate } from './dom';
 import type { Goal, GoalSession, AchievementDefinition, AchievementRecord } from './types';
 
@@ -80,12 +76,18 @@ export class MasteryApp {
   private readonly achievementsModal = {
     modal: requireElement<HTMLDivElement>('achievementsModal'),
     list: requireElement<HTMLDivElement>('achievementsList'),
-    close: requireElement<HTMLButtonElement>('achievementsClose')
+    close: requireElement<HTMLButtonElement>('achievementsClose'),
+    pagination: requireElement<HTMLDivElement>('achievementsPagination'),
+    status: requireElement<HTMLSpanElement>('achievementsPageStatus'),
+    prev: requireElement<HTMLButtonElement>('achievementsPrev'),
+    next: requireElement<HTMLButtonElement>('achievementsNext')
   };
   private readonly achievementToast = requireElement<HTMLDivElement>('achievementToast');
 
   private achievements: AchievementRecord[] = [];
   private achievementDefinitions: AchievementDefinition[] = [];
+  private achievementsPage = 1;
+  private readonly achievementsPageSize = 6;
 
   private progressCharts: ProgressCharts = {};
   private analyticsCharts: AnalyticsCharts = {};
@@ -248,6 +250,8 @@ export class MasteryApp {
 
   private setupAchievementsModal(): void {
     this.achievementsModal.close.addEventListener('click', () => hideModal(this.achievementsModal.modal));
+    this.achievementsModal.prev.addEventListener('click', () => this.changeAchievementsPage(-1));
+    this.achievementsModal.next.addEventListener('click', () => this.changeAchievementsPage(1));
   }
 
   private restoreActiveSession(): void {
@@ -403,6 +407,7 @@ export class MasteryApp {
   }
 
   private openAchievements(): void {
+    this.achievementsPage = 1;
     this.renderAchievementsView();
     showModal(this.achievementsModal.modal);
   }
@@ -607,60 +612,109 @@ export class MasteryApp {
     this.ensureTicker();
   }
 
+  private getUnlockedAchievements(): { record: AchievementRecord; definition: AchievementDefinition }[] {
+    const definitionMap = new Map(this.achievementDefinitions.map((definition) => [definition.id, definition]));
+    return this.achievements
+      .map((record) => {
+        const definition = definitionMap.get(record.id) ?? resolveAchievementDefinition(record.id, this.goals);
+        if (!definition) {
+          return null;
+        }
+        return { record, definition };
+      })
+      .filter((value): value is { record: AchievementRecord; definition: AchievementDefinition } => value !== null)
+      .sort((a, b) => b.record.unlockedAt - a.record.unlockedAt);
+  }
+
+  private changeAchievementsPage(offset: number): void {
+    const unlocked = this.getUnlockedAchievements();
+    if (unlocked.length === 0) {
+      this.achievementsPage = 1;
+      this.renderAchievementsView();
+      return;
+    }
+    const totalPages = Math.max(1, Math.ceil(unlocked.length / this.achievementsPageSize));
+    const nextPage = Math.min(totalPages, Math.max(1, this.achievementsPage + offset));
+    if (nextPage !== this.achievementsPage) {
+      this.achievementsPage = nextPage;
+      this.renderAchievementsView();
+    }
+  }
+
   private renderAchievementsView(): void {
     const list = this.achievementsModal.list;
-    const recordsById = new Map(this.achievements.map((record) => [record.id, record]));
+    const pagination = this.achievementsModal.pagination;
+    const status = this.achievementsModal.status;
+    const prev = this.achievementsModal.prev;
+    const next = this.achievementsModal.next;
     list.innerHTML = '';
-    const goals = this.goals
-      .slice()
-      .sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
 
-    if (goals.length === 0) {
+    const unlocked = this.getUnlockedAchievements();
+
+    if (unlocked.length === 0) {
       const empty = document.createElement('p');
       empty.className = 'muted';
-      empty.textContent = 'Add a goal to start earning awards.';
+      empty.textContent = 'No awards unlocked yet. Track progress to earn your first one.';
       list.appendChild(empty);
+      pagination.style.display = 'none';
       return;
     }
 
+    const totalPages = Math.max(1, Math.ceil(unlocked.length / this.achievementsPageSize));
+    if (this.achievementsPage > totalPages) {
+      this.achievementsPage = totalPages;
+    }
+    const startIndex = (this.achievementsPage - 1) * this.achievementsPageSize;
+    const pageItems = unlocked.slice(startIndex, startIndex + this.achievementsPageSize);
+    const goalTitles = new Map(this.goals.map((goal) => [goal.id, goal.title]));
+
     const fragment = document.createDocumentFragment();
-    goals.forEach((goal) => {
-      const group = document.createElement('section');
-      group.className = 'goal-achievement-group';
+    pageItems.forEach(({ record, definition }) => {
+      const card = document.createElement('article');
+      card.className = 'achievement-card';
 
-      const heading = document.createElement('h4');
-      heading.className = 'goal-achievement-heading';
-      heading.textContent = goal.title;
-      group.appendChild(heading);
+      const header = document.createElement('div');
+      header.className = 'achievement-header';
 
-      const grid = document.createElement('div');
-      grid.className = 'achievements-grid';
-      const definitions = buildAchievementDefinitionsForGoal(goal);
-      definitions.forEach((definition) => {
-        const record = recordsById.get(definition.id);
-        const card = document.createElement('div');
-        card.className = `achievement-card ${record ? 'unlocked' : 'locked'}`;
-        const status = record
-          ? `Unlocked ${new Date(record.unlockedAt).toLocaleDateString()}`
-          : `Locked • Reach ${definition.threshold}% completion`;
-        card.innerHTML = `
-          <div class="achievement-header">
-            <span class="achievement-icon" aria-hidden="true">🎯</span>
-            <div>
-              <strong>${definition.title}</strong>
-              <div class="achievement-status">${status}</div>
-            </div>
-          </div>
-          <p class="achievement-description">${definition.description}</p>
-        `;
-        grid.appendChild(card);
-      });
+      const icon = document.createElement('span');
+      icon.className = 'achievement-icon';
+      icon.textContent = '🏆';
 
-      group.appendChild(grid);
-      fragment.appendChild(group);
+      const heading = document.createElement('div');
+      const title = document.createElement('strong');
+      title.textContent = definition.title;
+      heading.appendChild(title);
+
+      header.appendChild(icon);
+      header.appendChild(heading);
+
+      const description = document.createElement('p');
+      description.className = 'achievement-description';
+      description.textContent = definition.description;
+
+      const meta = document.createElement('div');
+      meta.className = 'achievement-meta';
+
+      const unlockedLabel = document.createElement('span');
+      unlockedLabel.className = 'achievement-date';
+      unlockedLabel.textContent = `Unlocked ${new Date(record.unlockedAt).toLocaleDateString()}`;
+
+      const goalLabel = document.createElement('span');
+      const goalTitle = goalTitles.get(definition.goalId) ?? 'Goal removed';
+      goalLabel.textContent = `Goal • ${goalTitle}`;
+
+      meta.append(unlockedLabel, goalLabel);
+
+      card.append(header, description, meta);
+      fragment.appendChild(card);
     });
 
     list.appendChild(fragment);
+
+    pagination.style.display = 'flex';
+    status.textContent = `Page ${this.achievementsPage} of ${totalPages}`;
+    prev.disabled = this.achievementsPage <= 1;
+    next.disabled = this.achievementsPage >= totalPages;
   }
 
   private evaluateAchievements(notify: boolean): void {
