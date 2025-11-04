@@ -117,12 +117,22 @@ export function loadAchievements(): AchievementRecord[] {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
     return parsed
-      .map((value) => ({
-        id: String(value?.id ?? ''),
-        unlockedAt: Number(value?.unlockedAt ?? Date.now()),
-        seen: Boolean(value?.seen)
-      }))
-      .filter((record) => record.id);
+      .map((value) => {
+        const id = String(value?.id ?? '');
+        const goalId = String(value?.goalId ?? '');
+        if (!id || !goalId) {
+          return null;
+        }
+        const unlockedAtRaw = Number(value?.unlockedAt ?? Date.now());
+        const unlockedAt = Number.isFinite(unlockedAtRaw) ? unlockedAtRaw : Date.now();
+        return {
+          id,
+          goalId,
+          unlockedAt,
+          seen: Boolean(value?.seen)
+        };
+      })
+      .filter((record): record is AchievementRecord => Boolean(record?.id && record.goalId));
   } catch {
     return [];
   }

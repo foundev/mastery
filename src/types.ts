@@ -36,10 +36,11 @@ export interface DailyLimitValidation {
   message?: string;
 }
 
-export type AchievementCategory = 'streak' | 'daily-hours';
+export type AchievementCategory = 'goal-progress';
 
 export interface AchievementDefinition {
   id: string;
+  goalId: string;
   title: string;
   description: string;
   category: AchievementCategory;
@@ -48,6 +49,7 @@ export interface AchievementDefinition {
 
 export interface AchievementRecord {
   id: string;
+  goalId: string;
   unlockedAt: number;
   seen: boolean;
 }
