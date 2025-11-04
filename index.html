@@ -151,7 +151,12 @@
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="achievementsTitle" style="width:min(900px,96vw)">
         <header><h3 id="achievementsTitle">Achievements</h3></header>
         <main>
-          <div id="achievementsList" class="achievements-grid"></div>
+          <div id="achievementsList" class="achievements-list"></div>
+          <nav id="achievementsPagination" class="achievements-pagination" aria-label="Unlocked awards navigation">
+            <button id="achievementsPrev" type="button" class="secondary">Previous</button>
+            <span id="achievementsPageStatus" class="achievements-page-status" aria-live="polite"></span>
+            <button id="achievementsNext" type="button" class="secondary">Next</button>
+          </nav>
         </main>
         <footer>
           <button id="achievementsClose" type="button">Close</button>

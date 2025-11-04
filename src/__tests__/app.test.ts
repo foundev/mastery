@@ -77,6 +77,11 @@ const TEMPLATE_HTML = `
   <div id="achievementsModal" class="modal-backdrop" aria-hidden="true">
     <div class="modal">
       <div id="achievementsList"></div>
+      <nav id="achievementsPagination">
+        <button id="achievementsPrev" type="button"></button>
+        <span id="achievementsPageStatus"></span>
+        <button id="achievementsNext" type="button"></button>
+      </nav>
       <button id="achievementsClose" type="button"></button>
     </div>
   </div>
