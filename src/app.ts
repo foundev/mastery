@@ -489,11 +489,11 @@ export class MasteryApp {
   private startGoal(goalId: string): void {
     // ensure only one session running
     const active = this.goals.find((g) => g.isActive);
-    if (active && active.id !== goalId) {
-      return;
-    }
     if (active && active.id === goalId) {
       return;
+    }
+    if (active && active.id !== goalId) {
+      this.stopGoal();
     }
     const goal = this.goals.find((g) => g.id === goalId);
     if (!goal) return;

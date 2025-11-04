@@ -87,16 +87,26 @@ header.appbar nav .backup-status { margin-left: auto; font-size: 12px; color: va
   border-radius: 16px;
   background: color-mix(in oklab, var(--panel) 92%, var(--bg) 8%);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
-  transition: border-color 0.15s ease, box-shadow 0.2s ease;
+  transition: border-color 0.15s ease, box-shadow 0.2s ease, background 0.2s ease;
   box-sizing: border-box;
+  position: relative;
 }
 .goal:hover {
   border-color: color-mix(in oklab, var(--border) 60%, var(--primary) 40%);
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.25);
 }
 .goal.active {
-  border-color: color-mix(in oklab, var(--border) 50%, var(--primary) 50%);
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.25);
+  border-color: color-mix(in oklab, var(--primary) 70%, var(--border) 30%);
+  background: color-mix(in oklab, var(--primary) 20%, var(--panel) 80%);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+}
+.goal.active::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--primary) 45%, transparent);
+  pointer-events: none;
 }
 .goal:focus-within {
   border-color: var(--primary);
