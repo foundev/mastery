@@ -8,6 +8,7 @@ const TEMPLATE_HTML = `
     <nav>
       <button id="openAnalyticsBtn" type="button"></button>
       <button id="openAchievementsBtn" type="button"></button>
+      <button id="openP2PSyncBtn" type="button"></button>
       <button id="exportBtn" type="button"></button>
       <input id="importInput" type="file" />
       <button id="importBtn" type="button"></button>
@@ -111,6 +112,29 @@ const TEMPLATE_HTML = `
       <p id="del_warning"></p>
       <button id="del_cancel" type="button"></button>
       <button id="del_confirm" type="button"></button>
+    </div>
+  </div>
+  <div id="p2pSyncModal" class="modal-backdrop" aria-hidden="true">
+    <div class="modal">
+      <span id="p2p_status_text"></span>
+      <div id="p2p_disconnected_view"></div>
+      <div id="p2p_initiator_view" style="display:none;"></div>
+      <div id="p2p_responder_view" style="display:none;"></div>
+      <div id="p2p_connected_view" style="display:none;"></div>
+      <button id="p2p_create_offer_btn" type="button"></button>
+      <button id="p2p_respond_btn" type="button"></button>
+      <textarea id="p2p_offer_code"></textarea>
+      <button id="p2p_copy_offer_btn" type="button"></button>
+      <textarea id="p2p_answer_input"></textarea>
+      <button id="p2p_complete_btn" type="button"></button>
+      <textarea id="p2p_offer_input"></textarea>
+      <button id="p2p_create_answer_btn" type="button"></button>
+      <div id="p2p_answer_display" style="display:none;"></div>
+      <textarea id="p2p_answer_code"></textarea>
+      <button id="p2p_copy_answer_btn" type="button"></button>
+      <button id="p2p_sync_now_btn" type="button"></button>
+      <button id="p2p_disconnect_btn" type="button"></button>
+      <button id="p2p_close_btn" type="button"></button>
     </div>
   </div>
 `;

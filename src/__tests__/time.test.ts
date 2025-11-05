@@ -33,7 +33,7 @@ describe('time helpers', () => {
   it('validates daily limit with overflow', () => {
     const base = Date.UTC(2024, 4, 1);
     const sessions: GoalSession[] = [
-      { goalId: 'g', startTime: base, endTime: base + hoursToMilliseconds(20), duration: hoursToMilliseconds(20) }
+      { id: 's1', goalId: 'g', startTime: base, endTime: base + hoursToMilliseconds(20), duration: hoursToMilliseconds(20), instanceId: 'test' }
     ];
     const result = validateDailyLimit(sessions, 5, new Date(base));
     expect(result.ok).toBe(false);
@@ -43,7 +43,7 @@ describe('time helpers', () => {
   it('allows valid manual addition under daily limit', () => {
     const base = Date.UTC(2024, 4, 1);
     const sessions: GoalSession[] = [
-      { goalId: 'g', startTime: base, endTime: base + hoursToMilliseconds(2), duration: hoursToMilliseconds(2) }
+      { id: 's1', goalId: 'g', startTime: base, endTime: base + hoursToMilliseconds(2), duration: hoursToMilliseconds(2), instanceId: 'test' }
     ];
     const result = validateDailyLimit(sessions, 2, new Date(base));
     expect(result.ok).toBe(true);
@@ -72,14 +72,16 @@ describe('time helpers', () => {
       totalTimeSpent: hoursToMilliseconds(10),
       isActive: false,
       isArchived: false,
-      createdAt: now.getTime()
+      createdAt: now.getTime(),
+      lastModified: now.getTime(),
+      instanceId: 'test'
     };
 
     const day = 24 * 60 * 60 * 1000;
     const sessions: GoalSession[] = [
-      { goalId: 'goal-1', startTime: now.getTime() - day, endTime: now.getTime() - day + hoursToMilliseconds(3), duration: hoursToMilliseconds(3) },
-      { goalId: 'goal-1', startTime: now.getTime() - 2 * day, endTime: now.getTime() - 2 * day + hoursToMilliseconds(2), duration: hoursToMilliseconds(2) },
-      { goalId: 'goal-1', startTime: now.getTime() - 3 * day, endTime: now.getTime() - 3 * day + hoursToMilliseconds(4), duration: hoursToMilliseconds(4) }
+      { id: 's1', goalId: 'goal-1', startTime: now.getTime() - day, endTime: now.getTime() - day + hoursToMilliseconds(3), duration: hoursToMilliseconds(3), instanceId: 'test' },
+      { id: 's2', goalId: 'goal-1', startTime: now.getTime() - 2 * day, endTime: now.getTime() - 2 * day + hoursToMilliseconds(2), duration: hoursToMilliseconds(2), instanceId: 'test' },
+      { id: 's3', goalId: 'goal-1', startTime: now.getTime() - 3 * day, endTime: now.getTime() - 3 * day + hoursToMilliseconds(4), duration: hoursToMilliseconds(4), instanceId: 'test' }
     ];
 
     const estimate = estimateCompletion(goal, sessions);

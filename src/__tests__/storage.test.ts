@@ -55,6 +55,7 @@ describe('storage helpers', () => {
   });
 
   it('persists and loads goals correctly', () => {
+    const now = Date.now();
     const goals: Goal[] = [
       {
         id: 'g1',
@@ -64,7 +65,9 @@ describe('storage helpers', () => {
         totalTimeSpent: 50_000,
         isActive: false,
         isArchived: false,
-        createdAt: Date.now()
+        createdAt: now,
+        lastModified: now,
+        instanceId: 'test-instance'
       }
     ];
     saveGoals(goals);
@@ -73,16 +76,16 @@ describe('storage helpers', () => {
 
   it('appends sessions to existing list', () => {
     const initial: GoalSession[] = [
-      { goalId: 'g1', startTime: 0, endTime: 1000, duration: 1000 }
+      { id: 's1', goalId: 'g1', startTime: 0, endTime: 1000, duration: 1000, instanceId: 'test-instance' }
     ];
     saveSessions(initial);
-    appendSession({ goalId: 'g2', startTime: 10, endTime: 20, duration: 10 });
+    appendSession({ id: 's2', goalId: 'g2', startTime: 10, endTime: 20, duration: 10, instanceId: 'test-instance' });
     expect(loadSessions()).toHaveLength(2);
   });
 
   it('filters malformed sessions when loading', () => {
     const data = [
-      { goalId: 'ok', startTime: 1, endTime: 2, duration: 1 },
+      { id: 's1', goalId: 'ok', startTime: 1, endTime: 2, duration: 1, instanceId: 'test-instance' },
       { goalId: null, startTime: 'bad', endTime: 2, duration: 1 }
     ];
     window.localStorage.setItem(SESSIONS_KEY, JSON.stringify(data));
