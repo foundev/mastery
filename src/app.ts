@@ -1,5 +1,5 @@
 import { ACTIVE_SESSION_KEY, GOALS_KEY, SESSIONS_KEY } from './constants';
-import { appendSession, getActiveSession, getLastBackup, loadAchievements, loadGoals, loadSessions, saveAchievements, saveActiveSession, saveGoals, saveLastBackup } from './storage';
+import { appendSession, getActiveSession, getLastBackup, loadAchievements, loadGoals, loadSessions, saveAchievements, saveActiveSession, saveGoals, saveLastBackup, saveSessions } from './storage';
 import {
   calculateDailyStreak,
   formatDuration,
@@ -15,6 +15,8 @@ import { GOAL_TEMPLATES } from './templates';
 import { renderProgressChart, renderAnalyticsCharts } from './charts';
 import { buildAchievementDefinitions, resolveAchievementDefinition } from './achievements';
 import { requireElement, requireTemplate } from './dom';
+import { syncManager } from './sync';
+import { webrtcManager } from './webrtc';
 import type { Goal, GoalSession, AchievementDefinition, AchievementRecord } from './types';
 
 interface ProgressCharts {
@@ -97,6 +99,29 @@ export class MasteryApp {
   };
   private readonly achievementToast = requireElement<HTMLDivElement>('achievementToast');
 
+  private readonly p2pModal = {
+    modal: requireElement<HTMLDivElement>('p2pSyncModal'),
+    statusText: requireElement<HTMLSpanElement>('p2p_status_text'),
+    disconnectedView: requireElement<HTMLDivElement>('p2p_disconnected_view'),
+    initiatorView: requireElement<HTMLDivElement>('p2p_initiator_view'),
+    responderView: requireElement<HTMLDivElement>('p2p_responder_view'),
+    connectedView: requireElement<HTMLDivElement>('p2p_connected_view'),
+    createOfferBtn: requireElement<HTMLButtonElement>('p2p_create_offer_btn'),
+    respondBtn: requireElement<HTMLButtonElement>('p2p_respond_btn'),
+    offerCode: requireElement<HTMLTextAreaElement>('p2p_offer_code'),
+    copyOfferBtn: requireElement<HTMLButtonElement>('p2p_copy_offer_btn'),
+    answerInput: requireElement<HTMLTextAreaElement>('p2p_answer_input'),
+    completeBtn: requireElement<HTMLButtonElement>('p2p_complete_btn'),
+    offerInput: requireElement<HTMLTextAreaElement>('p2p_offer_input'),
+    createAnswerBtn: requireElement<HTMLButtonElement>('p2p_create_answer_btn'),
+    answerDisplay: requireElement<HTMLDivElement>('p2p_answer_display'),
+    answerCode: requireElement<HTMLTextAreaElement>('p2p_answer_code'),
+    copyAnswerBtn: requireElement<HTMLButtonElement>('p2p_copy_answer_btn'),
+    syncNowBtn: requireElement<HTMLButtonElement>('p2p_sync_now_btn'),
+    disconnectBtn: requireElement<HTMLButtonElement>('p2p_disconnect_btn'),
+    closeBtn: requireElement<HTMLButtonElement>('p2p_close_btn')
+  };
+
   private achievements: AchievementRecord[] = [];
   private achievementDefinitions: AchievementDefinition[] = [];
   private achievementsPage = 1;
@@ -116,6 +141,7 @@ export class MasteryApp {
     this.setupProgressModal();
     this.setupAnalyticsModal();
     this.setupAchievementsModal();
+    this.setupP2PSyncModal();
     this.setupBackupControls();
     this.setupPersistence();
     this.renderGoals();
@@ -130,6 +156,8 @@ export class MasteryApp {
     analyticsBtn?.addEventListener('click', () => this.openAnalytics());
     const achievementsBtn = document.getElementById('openAchievementsBtn');
     achievementsBtn?.addEventListener('click', () => this.openAchievements());
+    const p2pSyncBtn = document.getElementById('openP2PSyncBtn');
+    p2pSyncBtn?.addEventListener('click', () => this.openP2PSync());
   }
 
   private setupBackupControls(): void {
@@ -277,6 +305,7 @@ export class MasteryApp {
     }
     goal.isActive = true;
     goal.startTime = saved.startTime;
+    goal.lastModified = Date.now();
     saveGoals(this.goals);
   }
 
@@ -444,17 +473,21 @@ export class MasteryApp {
     const duration = hoursToMilliseconds(hours);
     const endTime = new Date(targetDate);
     const startTime = endTime.getTime() - duration;
+    const instanceId = syncManager.createSyncData([], [], [], null).instanceId;
     const session: GoalSession = {
+      id: crypto.randomUUID(),
       goalId: this.addTimeGoalId,
       startTime,
       endTime: endTime.getTime(),
-      duration
+      duration,
+      instanceId
     };
     appendSession(session);
 
     const goal = this.goals.find((g) => g.id === this.addTimeGoalId);
     if (goal) {
       goal.totalTimeSpent += duration;
+      goal.lastModified = Date.now();
       saveGoals(this.goals);
     }
 
@@ -464,6 +497,7 @@ export class MasteryApp {
   }
 
   private addGoal(title: string, totalHours: number, description: string): void {
+    const now = Date.now();
     const goal: Goal = {
       id: crypto.randomUUID(),
       title,
@@ -472,7 +506,9 @@ export class MasteryApp {
       totalTimeSpent: 0,
       isActive: false,
       isArchived: false,
-      createdAt: Date.now()
+      createdAt: now,
+      lastModified: now,
+      instanceId: syncManager.createSyncData([], [], [], null).instanceId
     };
     this.goals.push(goal);
     saveGoals(this.goals);
@@ -503,7 +539,8 @@ export class MasteryApp {
             ...g,
             isActive: false,
             startTime: undefined,
-            isArchived: true
+            isArchived: true,
+            lastModified: Date.now()
           }
         : g
     );
@@ -519,7 +556,8 @@ export class MasteryApp {
       ...goal,
       isArchived: false,
       isActive: false,
-      startTime: undefined
+      startTime: undefined,
+      lastModified: Date.now()
     };
     this.goals.unshift(restored);
     saveGoals(this.goals);
@@ -539,14 +577,16 @@ export class MasteryApp {
     if (goalIndex === -1) return;
     if (this.goals[goalIndex].isArchived) return;
     const [goal] = this.goals.splice(goalIndex, 1);
+    const now = Date.now();
     goal.isActive = true;
-    goal.startTime = Date.now();
+    goal.startTime = now;
+    goal.lastModified = now;
     this.goals.unshift(goal);
     saveGoals(this.goals);
     saveActiveSession({
       goalId: goal.id,
       startTime: goal.startTime,
-      lastUpdated: Date.now()
+      lastUpdated: now
     });
     this.renderGoals();
   }
@@ -554,14 +594,17 @@ export class MasteryApp {
   private stopGoal(): void {
     const now = Date.now();
     let changed = false;
+    const instanceId = syncManager.createSyncData([], [], [], null).instanceId;
     this.goals = this.goals.map((goal) => {
       if (goal.isActive && goal.startTime) {
         const duration = now - goal.startTime;
         const session: GoalSession = {
+          id: crypto.randomUUID(),
           goalId: goal.id,
           startTime: goal.startTime,
           endTime: now,
-          duration
+          duration,
+          instanceId
         };
         appendSession(session);
         changed = true;
@@ -569,7 +612,8 @@ export class MasteryApp {
           ...goal,
           isActive: false,
           startTime: undefined,
-          totalTimeSpent: goal.totalTimeSpent + duration
+          totalTimeSpent: goal.totalTimeSpent + duration,
+          lastModified: now
         };
       }
       return goal;
@@ -978,15 +1022,207 @@ export class MasteryApp {
     }, 6000);
   }
 
-  private exportBackup(): void {
-    const payload = {
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      goals: loadGoals(),
-      sessions: loadSessions(),
-      activeSession: getActiveSession()
+  private setupP2PSyncModal(): void {
+    // Setup WebRTC state change callback
+    webrtcManager.setOnStateChange((state) => {
+      this.updateP2PStatus(state);
+    });
+
+    // Setup sync received callback
+    webrtcManager.setOnSyncReceived((remoteData) => {
+      this.handleP2PSync(remoteData);
+    });
+
+    // Setup error callback
+    webrtcManager.setOnError((error) => {
+      alert(`P2P Error: ${error}`);
+    });
+
+    // Button handlers
+    this.p2pModal.createOfferBtn.addEventListener('click', () => this.createP2POffer());
+    this.p2pModal.respondBtn.addEventListener('click', () => this.showP2PResponder());
+    this.p2pModal.copyOfferBtn.addEventListener('click', () => this.copyToClipboard(this.p2pModal.offerCode.value));
+    this.p2pModal.completeBtn.addEventListener('click', () => this.completeP2PConnection());
+    this.p2pModal.createAnswerBtn.addEventListener('click', () => this.createP2PAnswer());
+    this.p2pModal.copyAnswerBtn.addEventListener('click', () => this.copyToClipboard(this.p2pModal.answerCode.value));
+    this.p2pModal.syncNowBtn.addEventListener('click', () => this.syncP2PNow());
+    this.p2pModal.disconnectBtn.addEventListener('click', () => this.disconnectP2P());
+    this.p2pModal.closeBtn.addEventListener('click', () => hideModal(this.p2pModal.modal));
+  }
+
+  private openP2PSync(): void {
+    this.updateP2PStatus(webrtcManager.getState());
+    showModal(this.p2pModal.modal);
+  }
+
+  private updateP2PStatus(state: string): void {
+    // Update status text
+    const statusColors: Record<string, string> = {
+      disconnected: '#f1f5f9',
+      connecting: '#fef3c7',
+      connected: '#d1fae5',
+      failed: '#fee2e2'
     };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+
+    const statusText: Record<string, string> = {
+      disconnected: 'Disconnected',
+      connecting: 'Connecting...',
+      connected: 'Connected',
+      failed: 'Connection Failed'
+    };
+
+    this.p2pModal.statusText.textContent = statusText[state] || state;
+    const statusBadge = this.p2pModal.statusText.parentElement;
+    if (statusBadge) {
+      statusBadge.style.background = statusColors[state] || '#f1f5f9';
+    }
+
+    // Show/hide appropriate views
+    this.p2pModal.disconnectedView.style.display = state === 'disconnected' ? 'block' : 'none';
+    this.p2pModal.connectedView.style.display = state === 'connected' ? 'block' : 'none';
+
+    if (state === 'failed') {
+      this.p2pModal.disconnectedView.style.display = 'block';
+    }
+  }
+
+  private async createP2POffer(): Promise<void> {
+    try {
+      const offerCode = await webrtcManager.createOffer();
+      this.p2pModal.offerCode.value = offerCode;
+      this.p2pModal.disconnectedView.style.display = 'none';
+      this.p2pModal.initiatorView.style.display = 'block';
+    } catch (error) {
+      alert(`Failed to create offer: ${error}`);
+    }
+  }
+
+  private showP2PResponder(): void {
+    this.p2pModal.disconnectedView.style.display = 'none';
+    this.p2pModal.responderView.style.display = 'block';
+  }
+
+  private async completeP2PConnection(): Promise<void> {
+    const answerCode = this.p2pModal.answerInput.value.trim();
+    if (!answerCode) {
+      alert('Please paste the answer code');
+      return;
+    }
+
+    try {
+      await webrtcManager.applyAnswer(answerCode);
+      this.p2pModal.initiatorView.style.display = 'none';
+    } catch (error) {
+      alert(`Failed to complete connection: ${error}`);
+    }
+  }
+
+  private async createP2PAnswer(): Promise<void> {
+    const offerCode = this.p2pModal.offerInput.value.trim();
+    if (!offerCode) {
+      alert('Please paste the offer code');
+      return;
+    }
+
+    try {
+      const answerCode = await webrtcManager.createAnswer(offerCode);
+      this.p2pModal.answerCode.value = answerCode;
+      this.p2pModal.answerDisplay.style.display = 'block';
+    } catch (error) {
+      alert(`Failed to create answer: ${error}`);
+    }
+  }
+
+  private syncP2PNow(): void {
+    try {
+      // Get local data
+      const localData = syncManager.createSyncData(
+        loadGoals(),
+        loadSessions(),
+        loadAchievements(),
+        getActiveSession()
+      );
+
+      // Send to peer (which will trigger their onSyncReceived callback)
+      webrtcManager.requestSync(localData);
+
+      alert('Sync initiated! Waiting for peer response...');
+    } catch (error) {
+      alert(`Sync failed: ${error}`);
+    }
+  }
+
+  private handleP2PSync(remoteData: any): void {
+    try {
+      // Validate the received data
+      if (!syncManager.validateSyncData(remoteData)) {
+        alert('Received invalid sync data from peer');
+        return;
+      }
+
+      // Get local data
+      const localData = syncManager.createSyncData(
+        loadGoals(),
+        loadSessions(),
+        loadAchievements(),
+        getActiveSession()
+      );
+
+      // Merge with remote
+      const mergeResult = syncManager.merge(localData, remoteData);
+
+      // Save merged data
+      saveGoals(mergeResult.goals);
+      saveSessions(mergeResult.sessions);
+      saveAchievements(mergeResult.achievements);
+      saveActiveSession(mergeResult.activeSession);
+
+      // Reload and re-render
+      this.goals = loadGoals();
+      this.renderGoals();
+      this.evaluateAchievements(false);
+
+      // Show result
+      if (mergeResult.conflicts.length > 0) {
+        alert(`P2P Sync complete!\n\n${mergeResult.conflicts.length} conflicts resolved.`);
+      } else {
+        alert('P2P Sync complete! No conflicts.');
+      }
+    } catch (error) {
+      alert(`Sync processing failed: ${error}`);
+    }
+  }
+
+  private disconnectP2P(): void {
+    webrtcManager.disconnect();
+    this.p2pModal.initiatorView.style.display = 'none';
+    this.p2pModal.responderView.style.display = 'none';
+    this.p2pModal.connectedView.style.display = 'none';
+    this.p2pModal.answerDisplay.style.display = 'none';
+    this.p2pModal.offerCode.value = '';
+    this.p2pModal.answerInput.value = '';
+    this.p2pModal.offerInput.value = '';
+    this.p2pModal.answerCode.value = '';
+  }
+
+  private copyToClipboard(text: string): void {
+    navigator.clipboard.writeText(text).then(() => {
+      alert('Copied to clipboard!');
+    }).catch(() => {
+      alert('Failed to copy. Please copy manually.');
+    });
+  }
+
+  private exportBackup(): void {
+    // Create sync data with all current state
+    const syncData = syncManager.createSyncData(
+      loadGoals(),
+      loadSessions(),
+      loadAchievements(),
+      getActiveSession()
+    );
+
+    const blob = new Blob([JSON.stringify(syncData, null, 2)], { type: 'application/json' });
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `mastery-backup-${timestamp}.json`;
     const url = URL.createObjectURL(blob);
@@ -1006,37 +1242,67 @@ export class MasteryApp {
   private importBackup(jsonText: string): void {
     try {
       const parsed = JSON.parse(jsonText);
-      if (!parsed || typeof parsed !== 'object') {
+
+      // Validate sync data
+      if (!syncManager.validateSyncData(parsed)) {
         alert('Invalid backup format.');
         return;
       }
-      const { goals, sessions, activeSession } = parsed as {
-        goals?: Goal[];
-        sessions?: GoalSession[];
-        activeSession?: any;
-      };
-      if (!Array.isArray(goals) || !Array.isArray(sessions)) {
-        alert('Backup missing goals or sessions arrays.');
+
+      // Create local sync data
+      const localData = syncManager.createSyncData(
+        loadGoals(),
+        loadSessions(),
+        loadAchievements(),
+        getActiveSession()
+      );
+
+      // Get stats for confirmation message
+      const remoteStats = syncManager.getSyncStats(parsed);
+      const localStats = syncManager.getSyncStats(localData);
+
+      const message = `Import backup and merge with local data?\n\n` +
+        `Local: ${localStats.goalCount} goals, ${localStats.sessionCount} sessions, ${localStats.achievementCount} achievements\n` +
+        `Remote: ${remoteStats.goalCount} goals, ${remoteStats.sessionCount} sessions, ${remoteStats.achievementCount} achievements\n\n` +
+        `Data will be intelligently merged using timestamps.`;
+
+      if (!confirm(message)) {
         return;
       }
-      if (!confirm('Importing will replace your current data. Continue?')) {
-        return;
-      }
-      localStorage.setItem(GOALS_KEY, JSON.stringify(goals));
-      localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
-      if (activeSession) {
-        localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(activeSession));
-      } else {
-        localStorage.removeItem(ACTIVE_SESSION_KEY);
-      }
+
+      // Merge the data
+      const mergeResult = syncManager.merge(localData, parsed);
+
+      // Save merged data
+      saveGoals(mergeResult.goals);
+      saveSessions(mergeResult.sessions);
+      saveAchievements(mergeResult.achievements);
+      saveActiveSession(mergeResult.activeSession);
+
+      // Reload and re-render
       this.goals = loadGoals();
       this.renderGoals();
       this.evaluateAchievements(false);
       saveLastBackup(Date.now());
       this.updateBackupStatus();
-      alert('Backup imported successfully.');
-    } catch {
-      alert('Invalid JSON backup.');
+
+      // Show conflict summary if any
+      if (mergeResult.conflicts.length > 0) {
+        const conflictSummary = mergeResult.conflicts
+          .slice(0, 5)
+          .map(c => `- ${c.type} "${c.id.substring(0, 8)}..." resolved using ${c.resolution}`)
+          .join('\n');
+
+        const moreText = mergeResult.conflicts.length > 5
+          ? `\n... and ${mergeResult.conflicts.length - 5} more conflicts`
+          : '';
+
+        alert(`Import successful!\n\n${mergeResult.conflicts.length} conflicts resolved:\n${conflictSummary}${moreText}`);
+      } else {
+        alert('Import successful! No conflicts detected.');
+      }
+    } catch (error) {
+      alert(`Import failed: ${error instanceof Error ? error.message : 'Invalid JSON backup'}`);
     }
   }
 }

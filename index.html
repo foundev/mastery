@@ -23,6 +23,7 @@
         <nav aria-label="Top toolbar">
           <button id="openAnalyticsBtn" class="btn btn-outline" title="Open Analytics" type="button"><span class="material-symbols-outlined">analytics</span><span class="label">Analytics</span></button>
           <button id="openAchievementsBtn" class="btn btn-outline" title="View Achievements" type="button"><span class="material-symbols-outlined">emoji_events</span><span class="label">Awards</span></button>
+          <button id="openP2PSyncBtn" class="btn btn-outline" title="P2P Sync" type="button"><span class="material-symbols-outlined">sync</span><span class="label">P2P Sync</span></button>
           <button id="exportBtn" class="btn btn-outline" title="Export Backup" type="button"><span class="material-symbols-outlined">download</span><span class="label">Export</span></button>
           <input id="importInput" type="file" accept="application/json" style="display:none" />
           <button id="importBtn" class="btn btn-outline" title="Import Backup" type="button"><span class="material-symbols-outlined">upload</span><span class="label">Import</span></button>
@@ -203,6 +204,98 @@
             <button id="del_cancel" class="secondary">Cancel</button>
             <button id="del_confirm" class="contrast">Yes, Delete Goal</button>
           </div>
+        </footer>
+      </div>
+    </div>
+
+    <!-- P2P Sync Modal -->
+    <div id="p2pSyncModal" class="modal-backdrop" aria-hidden="true">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="p2pSyncTitle" style="width:min(700px,95vw)">
+        <header><h3 id="p2pSyncTitle">P2P Synchronization</h3></header>
+        <main>
+          <div class="stack">
+            <p class="small muted">Connect two instances directly to sync data peer-to-peer. No server required!</p>
+
+            <!-- Connection Status -->
+            <div id="p2p_status" class="status-badge" style="padding:12px; border-radius:8px; background:#f1f5f9; text-align:center;">
+              <strong>Status:</strong> <span id="p2p_status_text">Disconnected</span>
+            </div>
+
+            <!-- Disconnected View -->
+            <div id="p2p_disconnected_view">
+              <h4 style="margin:20px 0 12px; font-size:16px;">Start Connection</h4>
+              <p class="small muted">Choose your role to begin pairing:</p>
+              <div class="grid" style="margin-top:16px;">
+                <button id="p2p_create_offer_btn" class="contrast">
+                  <span class="material-symbols-outlined" style="vertical-align:middle;">call_made</span>
+                  Create Offer
+                </button>
+                <button id="p2p_respond_btn" class="secondary">
+                  <span class="material-symbols-outlined" style="vertical-align:middle;">call_received</span>
+                  Respond to Offer
+                </button>
+              </div>
+            </div>
+
+            <!-- Initiator View (Create Offer) -->
+            <div id="p2p_initiator_view" style="display:none;">
+              <h4 style="margin:20px 0 12px; font-size:16px;">Step 1: Share Your Code</h4>
+              <p class="small muted">Copy this code and send it to the other device:</p>
+              <textarea id="p2p_offer_code" readonly rows="6" style="font-family:monospace; font-size:12px; resize:vertical;"></textarea>
+              <button id="p2p_copy_offer_btn" class="outline">
+                <span class="material-symbols-outlined" style="vertical-align:middle;">content_copy</span>
+                Copy Code
+              </button>
+
+              <h4 style="margin:20px 0 12px; font-size:16px;">Step 2: Paste Answer Code</h4>
+              <p class="small muted">Paste the answer code you received:</p>
+              <textarea id="p2p_answer_input" rows="6" placeholder="Paste answer code here..." style="font-family:monospace; font-size:12px; resize:vertical;"></textarea>
+              <button id="p2p_complete_btn" class="contrast">
+                <span class="material-symbols-outlined" style="vertical-align:middle;">link</span>
+                Complete Connection
+              </button>
+            </div>
+
+            <!-- Responder View (Answer Offer) -->
+            <div id="p2p_responder_view" style="display:none;">
+              <h4 style="margin:20px 0 12px; font-size:16px;">Step 1: Paste Offer Code</h4>
+              <p class="small muted">Paste the offer code you received:</p>
+              <textarea id="p2p_offer_input" rows="6" placeholder="Paste offer code here..." style="font-family:monospace; font-size:12px; resize:vertical;"></textarea>
+              <button id="p2p_create_answer_btn" class="contrast">
+                <span class="material-symbols-outlined" style="vertical-align:middle;">reply</span>
+                Generate Answer
+              </button>
+
+              <div id="p2p_answer_display" style="display:none;">
+                <h4 style="margin:20px 0 12px; font-size:16px;">Step 2: Share Your Answer</h4>
+                <p class="small muted">Copy this answer code and send it back:</p>
+                <textarea id="p2p_answer_code" readonly rows="6" style="font-family:monospace; font-size:12px; resize:vertical;"></textarea>
+                <button id="p2p_copy_answer_btn" class="outline">
+                  <span class="material-symbols-outlined" style="vertical-align:middle;">content_copy</span>
+                  Copy Code
+                </button>
+              </div>
+            </div>
+
+            <!-- Connected View -->
+            <div id="p2p_connected_view" style="display:none;">
+              <h4 style="margin:20px 0 12px; font-size:16px;">Connected!</h4>
+              <p class="small muted">You can now sync your data with the connected peer.</p>
+              <div class="grid" style="margin-top:16px;">
+                <button id="p2p_sync_now_btn" class="contrast">
+                  <span class="material-symbols-outlined" style="vertical-align:middle;">sync</span>
+                  Sync Now
+                </button>
+                <button id="p2p_disconnect_btn" class="secondary">
+                  <span class="material-symbols-outlined" style="vertical-align:middle;">link_off</span>
+                  Disconnect
+                </button>
+              </div>
+            </div>
+          </div>
+        </main>
+        <footer>
+          <button id="p2p_close_btn">Close</button>
         </footer>
       </div>
     </div>

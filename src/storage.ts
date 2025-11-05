@@ -1,4 +1,4 @@
-import { ACHIEVEMENTS_KEY, ACTIVE_SESSION_KEY, GOALS_KEY, LAST_BACKUP_KEY, SESSIONS_KEY } from './constants';
+import { ACHIEVEMENTS_KEY, ACTIVE_SESSION_KEY, GOALS_KEY, INSTANCE_ID_KEY, LAST_BACKUP_KEY, SESSIONS_KEY } from './constants';
 import type { ActiveSession, Goal, GoalSession, AchievementRecord } from './types';
 
 const DEFAULT_TOTAL_HOURS = 60;
@@ -7,7 +7,18 @@ function isNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
+export function getInstanceId(): string {
+  let instanceId = localStorage.getItem(INSTANCE_ID_KEY);
+  if (!instanceId) {
+    instanceId = crypto.randomUUID();
+    localStorage.setItem(INSTANCE_ID_KEY, instanceId);
+  }
+  return instanceId;
+}
+
 function sanitizeGoal(raw: any): Goal {
+  const now = Date.now();
+  const instanceId = getInstanceId();
   return {
     id: String(raw?.id ?? crypto.randomUUID()),
     title: String(raw?.title ?? 'Untitled'),
@@ -21,7 +32,9 @@ function sanitizeGoal(raw: any): Goal {
     isActive: Boolean(raw?.isActive),
     isArchived: Boolean(raw?.isArchived),
     startTime: isNumber(raw?.startTime) ? raw.startTime : undefined,
-    createdAt: isNumber(raw?.createdAt) ? raw.createdAt : Date.now()
+    createdAt: isNumber(raw?.createdAt) ? raw.createdAt : now,
+    lastModified: isNumber(raw?.lastModified) ? raw.lastModified : now,
+    instanceId: String(raw?.instanceId ?? instanceId)
   };
 }
 
@@ -47,12 +60,15 @@ export function loadSessions(): GoalSession[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
+    const instanceId = getInstanceId();
     return parsed
       .map((value) => ({
+        id: String(value?.id ?? crypto.randomUUID()),
         goalId: String(value?.goalId ?? ''),
         startTime: Number(value?.startTime ?? 0),
         endTime: Number(value?.endTime ?? 0),
-        duration: Number(value?.duration ?? 0)
+        duration: Number(value?.duration ?? 0),
+        instanceId: String(value?.instanceId ?? instanceId)
       }))
       .filter(
         (session) =>
@@ -117,6 +133,7 @@ export function loadAchievements(): AchievementRecord[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
+    const instanceId = getInstanceId();
     return parsed
       .map((value) => {
         const id = String(value?.id ?? '');
@@ -130,7 +147,8 @@ export function loadAchievements(): AchievementRecord[] {
           id,
           goalId,
           unlockedAt,
-          seen: Boolean(value?.seen)
+          seen: Boolean(value?.seen),
+          instanceId: String(value?.instanceId ?? instanceId)
         };
       })
       .filter((record): record is AchievementRecord => Boolean(record?.id && record.goalId));
