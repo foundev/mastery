@@ -6,29 +6,36 @@ Mastery-focused goal tracking with live timers, manual time entry, analytics, an
 ## Architecture
 - UI: PicoCSS components, lightweight custom styles, responsive goal cards with active-state highlighting.
 - Data model:
-  - Goal: { id, title, description, totalHours, totalTimeSpent(ms), isActive, startTime?, createdAt }
-  - Session: { goalId, startTime, endTime, duration(ms) }
+  - Goal: { id, title, description, totalHours, totalTimeSpent(ms), isActive, startTime?, createdAt, lastModified, instanceId }
+  - Session: { id, goalId, startTime, endTime, duration(ms), instanceId }
 - Storage keys:
   - `goal-tracker-goals`
   - `goal-tracker-sessions`
   - `goal-tracker-active-session`
   - `goal-tracker-last-backup`
   - `goal-tracker-achievements`
+  - `goal-tracker-instance-id`
 - Charts: ECharts (bundled via Vite)
   - Per-goal: daily bar + cumulative line (Progress modal)
   - Global: daily trend line; time-by-goal pie (Analytics modal)
+- Synchronization:
+  - P2P sync via WebRTC with manual signaling (copy/paste connection codes)
+  - SyncManager handles data merging using Last-Write-Wins (LWW) conflict resolution
+  - Each instance has unique ID; conflicts resolved by lastModified timestamp
 
 ## Key UX
 - FAB opens Add Goal modal with template suggestions.
 - Goal cards: Start/Stop, Add Time (modal), Progress (modal), Delete (confirmation). Active card gets a prominent border to denote the running session.
 - Live session ticker; on Stop, session persisted and totalTimeSpent updated. Header shows last backup time; achievements toast when milestones unlocked.
 - Estimated completion from median of recent daily hours; autobuild uses Vite, testing via Vitest.
+- P2P Sync modal: Initiate connection (generate code) or respond to code. Serverless peer-to-peer sync via copy/paste connection codes using WebRTC with STUN servers for NAT traversal.
 
 ## Decisions
 - Single running timer at a time to avoid overlapping sessions.
 - Persist active session on visibility change/unload; restore on load. Achievements evaluate on stop/manual additions.
 - Validate Add Time against 24h/day across all goals. Achievements cover streaks (90d, 365d, yearly) and daily hour milestones (1/2/4/8/12h).
 - Use vanilla JS + modular TypeScript compiled via Vite; no external state management.
+- P2P sync uses serverless WebRTC with manual signaling (no backend required). Last-Write-Wins strategy for conflict resolution based on lastModified timestamps. Sessions and achievements deduplicated by ID.
 
 ## Follow-ups / Ideas
 - Export/import data (JSON file download/upload). (Implemented)
@@ -49,4 +56,5 @@ Mastery-focused goal tracking with live timers, manual time entry, analytics, an
 - v1: Rebuilt standalone with PicoCSS, ECharts, modals (Add Goal, Add Time, Progress, Analytics), storage, estimates, delete confirm.
 - v2: Migrated to Vite + TypeScript modules, added analytics/achievements/toasts/backups, PWA support.
 - v3: Added responsive tweaks, single active timer enforcement with card highlight, simplified header indicator.
+- v4: Added P2P synchronization using WebRTC (PR #10). Serverless sync between multiple instances with manual signaling. Last-Write-Wins conflict resolution. Added sync.ts and webrtc.ts modules with SyncManager and WebRTCManager classes.
 
