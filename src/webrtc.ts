@@ -1,5 +1,6 @@
 import type { SyncData } from './types';
 import { syncManager } from './sync';
+import { getInstanceId } from './storage';
 
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'failed';
 export type PeerRole = 'initiator' | 'responder';
@@ -96,7 +97,7 @@ export class WebRTCManager {
       const offerData = {
         type: 'offer',
         sdp: this.pc.localDescription?.sdp,
-        instanceId: syncManager.createSyncData([], [], [], null).instanceId
+        instanceId: getInstanceId()
       };
 
       return this.encodeConnectionCode(offerData);
@@ -145,7 +146,7 @@ export class WebRTCManager {
       const answerData = {
         type: 'answer',
         sdp: this.pc.localDescription?.sdp,
-        instanceId: syncManager.createSyncData([], [], [], null).instanceId
+        instanceId: getInstanceId()
       };
 
       return this.encodeConnectionCode(answerData);
