@@ -20,9 +20,6 @@ import { webrtcManager } from './webrtc';
 import type { Goal, GoalSession, AchievementDefinition, AchievementRecord } from './types';
 import QRCode from 'qrcode';
 import QrScanner from 'qr-scanner';
-import qrScannerWorkerUrl from 'qr-scanner/qr-scanner-worker.min.js?url';
-
-QrScanner.WORKER_PATH = qrScannerWorkerUrl;
 
 interface ProgressCharts {
   resize?: () => void;
