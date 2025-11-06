@@ -10,7 +10,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "echarts": "^5.5.0"
+    "echarts": "^5.5.0",
+    "qr-scanner": "^1.4.2",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "@types/node": "^20.14.10",

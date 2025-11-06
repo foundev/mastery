@@ -242,6 +242,10 @@
               <h4 style="margin:20px 0 12px; font-size:16px;">Step 1: Share Your Code</h4>
               <p class="small muted">Copy this code and send it to the other device:</p>
               <textarea id="p2p_offer_code" readonly rows="6" style="font-family:monospace; font-size:12px; resize:vertical;"></textarea>
+                <div id="p2p_offer_qr_wrapper" class="qr-preview" style="display:none;">
+                  <canvas id="p2p_offer_qr" width="0" height="0" aria-hidden="true"></canvas>
+                  <p class="small muted">Show this QR code to the other device to auto-fill the offer.</p>
+                </div>
               <button id="p2p_copy_offer_btn" class="btn btn-outline">
                 <span class="material-symbols-outlined" style="vertical-align:middle;">content_copy</span>
                 Copy Code
@@ -250,6 +254,16 @@
               <h4 style="margin:20px 0 12px; font-size:16px;">Step 2: Paste Answer Code</h4>
               <p class="small muted">Paste the answer code you received:</p>
               <textarea id="p2p_answer_input" rows="6" placeholder="Paste answer code here..." style="font-family:monospace; font-size:12px; resize:vertical;"></textarea>
+                <div class="qr-scan">
+                  <button id="p2p_answer_scan_btn" class="btn btn-outline" type="button">
+                    <span class="material-symbols-outlined" style="vertical-align:middle;">qr_code_scanner</span>
+                    Scan QR
+                  </button>
+                  <div id="p2p_answer_scan" class="qr-scan-view" style="display:none;">
+                    <video id="p2p_answer_scan_video" playsinline muted></video>
+                    <p id="p2p_answer_scan_status" class="small muted"></p>
+                  </div>
+                </div>
               <button id="p2p_complete_btn" class="btn btn-primary">
                 <span class="material-symbols-outlined" style="vertical-align:middle;">link</span>
                 Complete Connection
@@ -261,6 +275,16 @@
               <h4 style="margin:20px 0 12px; font-size:16px;">Step 1: Paste Offer Code</h4>
               <p class="small muted">Paste the offer code you received:</p>
               <textarea id="p2p_offer_input" rows="6" placeholder="Paste offer code here..." style="font-family:monospace; font-size:12px; resize:vertical;"></textarea>
+                <div class="qr-scan">
+                  <button id="p2p_offer_scan_btn" class="btn btn-outline" type="button">
+                    <span class="material-symbols-outlined" style="vertical-align:middle;">qr_code_scanner</span>
+                    Scan QR
+                  </button>
+                  <div id="p2p_offer_scan" class="qr-scan-view" style="display:none;">
+                    <video id="p2p_offer_scan_video" playsinline muted></video>
+                    <p id="p2p_offer_scan_status" class="small muted"></p>
+                  </div>
+                </div>
               <button id="p2p_create_answer_btn" class="btn btn-primary">
                 <span class="material-symbols-outlined" style="vertical-align:middle;">reply</span>
                 Generate Answer
@@ -270,6 +294,10 @@
                 <h4 style="margin:20px 0 12px; font-size:16px;">Step 2: Share Your Answer</h4>
                 <p class="small muted">Copy this answer code and send it back:</p>
                 <textarea id="p2p_answer_code" readonly rows="6" style="font-family:monospace; font-size:12px; resize:vertical;"></textarea>
+                  <div id="p2p_answer_qr_wrapper" class="qr-preview" style="display:none;">
+                    <canvas id="p2p_answer_qr" width="0" height="0" aria-hidden="true"></canvas>
+                    <p class="small muted">Show this QR code to the first device so it can paste your answer.</p>
+                  </div>
                 <button id="p2p_copy_answer_btn" class="btn btn-outline">
                   <span class="material-symbols-outlined" style="vertical-align:middle;">content_copy</span>
                   Copy Code

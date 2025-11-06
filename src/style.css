@@ -140,6 +140,42 @@ header.appbar nav .backup-status { margin-left: auto; font-size: 12px; color: va
       .startBtn .material-symbols-outlined { color: #fff; }
       .stopBtn .material-symbols-outlined { color: #fff; }
       .archivedBadge { font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
+.qr-preview {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--panel) 92%, var(--bg) 8%);
+}
+
+.qr-preview canvas {
+  width: 220px;
+  height: 220px;
+  max-width: 100%;
+}
+
+.qr-scan {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.qr-scan-view {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--panel) 86%, var(--bg) 14%);
+}
+
+.qr-scan-view video {
+  width: 100%;
+  border-radius: 8px;
+  background: #000;
+}
       /* Modal styles */
       .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; align-items: center; justify-content: center; z-index: 1000; opacity: 0; transition: opacity .2s ease; }
       .modal-backdrop[aria-hidden="false"] { opacity: 1; }

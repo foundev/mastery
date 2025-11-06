@@ -18,6 +18,8 @@ import { requireElement, requireTemplate } from './dom';
 import { syncManager } from './sync';
 import { webrtcManager } from './webrtc';
 import type { Goal, GoalSession, AchievementDefinition, AchievementRecord } from './types';
+import QRCode from 'qrcode';
+import QrScanner from 'qr-scanner';
 
 interface ProgressCharts {
   resize?: () => void;
@@ -117,6 +119,18 @@ export class MasteryApp {
     answerDisplay: requireElement<HTMLDivElement>('p2p_answer_display'),
     answerCode: requireElement<HTMLTextAreaElement>('p2p_answer_code'),
     copyAnswerBtn: requireElement<HTMLButtonElement>('p2p_copy_answer_btn'),
+    offerQrWrapper: requireElement<HTMLDivElement>('p2p_offer_qr_wrapper'),
+    offerQrCanvas: requireElement<HTMLCanvasElement>('p2p_offer_qr'),
+    answerQrWrapper: requireElement<HTMLDivElement>('p2p_answer_qr_wrapper'),
+    answerQrCanvas: requireElement<HTMLCanvasElement>('p2p_answer_qr'),
+    offerScanBtn: requireElement<HTMLButtonElement>('p2p_offer_scan_btn'),
+    offerScanSection: requireElement<HTMLDivElement>('p2p_offer_scan'),
+    offerScanVideo: requireElement<HTMLVideoElement>('p2p_offer_scan_video'),
+    offerScanStatus: requireElement<HTMLParagraphElement>('p2p_offer_scan_status'),
+    answerScanBtn: requireElement<HTMLButtonElement>('p2p_answer_scan_btn'),
+    answerScanSection: requireElement<HTMLDivElement>('p2p_answer_scan'),
+    answerScanVideo: requireElement<HTMLVideoElement>('p2p_answer_scan_video'),
+    answerScanStatus: requireElement<HTMLParagraphElement>('p2p_answer_scan_status'),
     syncNowBtn: requireElement<HTMLButtonElement>('p2p_sync_now_btn'),
     disconnectBtn: requireElement<HTMLButtonElement>('p2p_disconnect_btn'),
     closeBtn: requireElement<HTMLButtonElement>('p2p_close_btn')
@@ -129,6 +143,10 @@ export class MasteryApp {
 
   private progressCharts: ProgressCharts = {};
   private analyticsCharts: AnalyticsCharts = {};
+  private offerScanner: QrScanner | null = null;
+  private answerScanner: QrScanner | null = null;
+  private offerScannerActive = false;
+  private answerScannerActive = false;
 
   constructor() {
     this.achievements = loadAchievements();
@@ -1045,18 +1063,274 @@ export class MasteryApp {
     this.p2pModal.completeBtn.addEventListener('click', () => this.completeP2PConnection());
     this.p2pModal.createAnswerBtn.addEventListener('click', () => this.createP2PAnswer());
     this.p2pModal.copyAnswerBtn.addEventListener('click', () => this.copyToClipboard(this.p2pModal.answerCode.value));
+    this.setScanButtonState(this.p2pModal.offerScanBtn, false);
+    this.setScanButtonState(this.p2pModal.answerScanBtn, false);
+    this.p2pModal.offerScanBtn.addEventListener('click', () => this.toggleOfferScan());
+    this.p2pModal.answerScanBtn.addEventListener('click', () => this.toggleAnswerScan());
     this.p2pModal.syncNowBtn.addEventListener('click', () => this.syncP2PNow());
     this.p2pModal.disconnectBtn.addEventListener('click', () => this.disconnectP2P());
-    this.p2pModal.closeBtn.addEventListener('click', () => hideModal(this.p2pModal.modal));
+    this.p2pModal.closeBtn.addEventListener('click', () => {
+      hideModal(this.p2pModal.modal);
+      void this.stopOfferScan();
+      void this.stopAnswerScan();
+    });
+  }
+
+  private setScanButtonState(button: HTMLButtonElement, active: boolean): void {
+    if (active) {
+      button.classList.remove('btn-outline');
+      button.classList.add('btn-danger');
+      button.innerHTML = `<span class="material-symbols-outlined" style="vertical-align:middle;">pause_circle</span>Stop Scanning`;
+    } else {
+      button.classList.add('btn-outline');
+      button.classList.remove('btn-danger');
+      button.innerHTML = `<span class="material-symbols-outlined" style="vertical-align:middle;">qr_code_scanner</span>Scan QR`;
+    }
+  }
+
+  private toggleOfferScan(): void {
+    if (this.offerScannerActive) {
+      void this.stopOfferScan();
+    } else {
+      void this.startOfferScan();
+    }
+  }
+
+  private toggleAnswerScan(): void {
+    if (this.answerScannerActive) {
+      void this.stopAnswerScan();
+    } else {
+      void this.startAnswerScan();
+    }
+  }
+
+  private async startOfferScan(): Promise<void> {
+    if (this.offerScannerActive) {
+      return;
+    }
+    if (this.answerScannerActive) {
+      await this.stopAnswerScan();
+    }
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices) {
+      this.p2pModal.offerScanSection.style.display = 'block';
+      this.p2pModal.offerScanStatus.textContent = 'Camera access is not available in this environment.';
+      this.setScanButtonState(this.p2pModal.offerScanBtn, false);
+      return;
+    }
+    try {
+      const hasCamera = await QrScanner.hasCamera();
+      if (!hasCamera) {
+        this.p2pModal.offerScanSection.style.display = 'block';
+        this.p2pModal.offerScanStatus.textContent = 'No camera detected. Paste the code instead.';
+        this.setScanButtonState(this.p2pModal.offerScanBtn, false);
+        return;
+      }
+    } catch (error) {
+      console.error('Failed to check camera availability', error);
+      this.p2pModal.offerScanSection.style.display = 'block';
+      this.p2pModal.offerScanStatus.textContent = 'Unable to access camera information.';
+      this.setScanButtonState(this.p2pModal.offerScanBtn, false);
+      return;
+    }
+
+    this.setScanButtonState(this.p2pModal.offerScanBtn, true);
+    this.p2pModal.offerScanSection.style.display = 'block';
+    this.p2pModal.offerScanStatus.textContent = 'Initializing camera...';
+
+    try {
+      this.offerScanner = new QrScanner(
+        this.p2pModal.offerScanVideo,
+        (result) => {
+          void this.handleOfferScanResult(result);
+        },
+        {
+          highlightScanRegion: true,
+          highlightCodeOutline: true,
+          maxScansPerSecond: 5,
+          returnDetailedScanResult: true
+        }
+      );
+      await this.offerScanner.start();
+      this.offerScannerActive = true;
+      this.p2pModal.offerScanStatus.textContent = 'Align the offer QR code within the frame.';
+    } catch (error) {
+      console.error('Offer QR scanning failed', error);
+      const message = `Unable to start the camera (${error instanceof Error ? error.message : 'unknown error'}).`;
+      await this.stopOfferScan(message);
+    }
+  }
+
+  private async startAnswerScan(): Promise<void> {
+    if (this.answerScannerActive) {
+      return;
+    }
+    if (this.offerScannerActive) {
+      await this.stopOfferScan();
+    }
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices) {
+      this.p2pModal.answerScanSection.style.display = 'block';
+      this.p2pModal.answerScanStatus.textContent = 'Camera access is not available in this environment.';
+      this.setScanButtonState(this.p2pModal.answerScanBtn, false);
+      return;
+    }
+    try {
+      const hasCamera = await QrScanner.hasCamera();
+      if (!hasCamera) {
+        this.p2pModal.answerScanSection.style.display = 'block';
+        this.p2pModal.answerScanStatus.textContent = 'No camera detected. Paste the code instead.';
+        this.setScanButtonState(this.p2pModal.answerScanBtn, false);
+        return;
+      }
+    } catch (error) {
+      console.error('Failed to check camera availability', error);
+      this.p2pModal.answerScanSection.style.display = 'block';
+      this.p2pModal.answerScanStatus.textContent = 'Unable to access camera information.';
+      this.setScanButtonState(this.p2pModal.answerScanBtn, false);
+      return;
+    }
+
+    this.setScanButtonState(this.p2pModal.answerScanBtn, true);
+    this.p2pModal.answerScanSection.style.display = 'block';
+    this.p2pModal.answerScanStatus.textContent = 'Initializing camera...';
+
+    try {
+      this.answerScanner = new QrScanner(
+        this.p2pModal.answerScanVideo,
+        (result) => {
+          void this.handleAnswerScanResult(result);
+        },
+        {
+          highlightScanRegion: true,
+          highlightCodeOutline: true,
+          maxScansPerSecond: 5,
+          returnDetailedScanResult: true
+        }
+      );
+      await this.answerScanner.start();
+      this.answerScannerActive = true;
+      this.p2pModal.answerScanStatus.textContent = 'Align the answer QR code within the frame.';
+    } catch (error) {
+      console.error('Answer QR scanning failed', error);
+      const message = `Unable to start the camera (${error instanceof Error ? error.message : 'unknown error'}).`;
+      await this.stopAnswerScan(message);
+    }
+  }
+
+  private async stopOfferScan(message?: string): Promise<void> {
+    if (this.offerScanner) {
+      try {
+        await this.offerScanner.stop();
+      } catch (error) {
+        console.warn('Failed to stop offer scanner', error);
+      }
+      this.offerScanner.destroy();
+      this.offerScanner = null;
+    }
+    this.offerScannerActive = false;
+    this.p2pModal.offerScanVideo.srcObject = null;
+    this.setScanButtonState(this.p2pModal.offerScanBtn, false);
+    if (message) {
+      this.p2pModal.offerScanSection.style.display = 'block';
+      this.p2pModal.offerScanStatus.textContent = message;
+    } else {
+      this.p2pModal.offerScanSection.style.display = 'none';
+      this.p2pModal.offerScanStatus.textContent = '';
+    }
+  }
+
+  private async stopAnswerScan(message?: string): Promise<void> {
+    if (this.answerScanner) {
+      try {
+        await this.answerScanner.stop();
+      } catch (error) {
+        console.warn('Failed to stop answer scanner', error);
+      }
+      this.answerScanner.destroy();
+      this.answerScanner = null;
+    }
+    this.answerScannerActive = false;
+    this.p2pModal.answerScanVideo.srcObject = null;
+    this.setScanButtonState(this.p2pModal.answerScanBtn, false);
+    if (message) {
+      this.p2pModal.answerScanSection.style.display = 'block';
+      this.p2pModal.answerScanStatus.textContent = message;
+    } else {
+      this.p2pModal.answerScanSection.style.display = 'none';
+      this.p2pModal.answerScanStatus.textContent = '';
+    }
+  }
+
+  private extractScanValue(result: unknown): string {
+    if (typeof result === 'string') {
+      return result.trim();
+    }
+    if (result && typeof result === 'object' && 'data' in result) {
+      const data = (result as { data?: unknown }).data;
+      if (typeof data === 'string') {
+        return data.trim();
+      }
+    }
+    return '';
+  }
+
+  private async handleOfferScanResult(result: unknown): Promise<void> {
+    const value = this.extractScanValue(result);
+    if (!value) {
+      return;
+    }
+    this.p2pModal.offerInput.value = value;
+    await this.stopOfferScan('Offer code detected and inserted automatically.');
+  }
+
+  private async handleAnswerScanResult(result: unknown): Promise<void> {
+    const value = this.extractScanValue(result);
+    if (!value) {
+      return;
+    }
+    this.p2pModal.answerInput.value = value;
+    await this.stopAnswerScan('Answer code detected and inserted automatically.');
+  }
+
+  private async renderQrPreview(
+    wrapper: HTMLElement,
+    canvas: HTMLCanvasElement,
+    value: string | null
+  ): Promise<void> {
+    if (!value) {
+      wrapper.style.display = 'none';
+      canvas.width = 0;
+      canvas.height = 0;
+      canvas.setAttribute('aria-hidden', 'true');
+      return;
+    }
+
+    try {
+      wrapper.style.display = 'grid';
+      await QRCode.toCanvas(canvas, value, {
+        errorCorrectionLevel: 'M',
+        margin: 1,
+        width: 220
+      });
+      canvas.setAttribute('aria-hidden', 'false');
+    } catch (error) {
+      console.error('Failed to render QR code', error);
+      wrapper.style.display = 'none';
+      canvas.setAttribute('aria-hidden', 'true');
+    }
   }
 
   private openP2PSync(): void {
     this.updateP2PStatus(webrtcManager.getState());
+    if (!this.p2pModal.offerCode.value) {
+      void this.renderQrPreview(this.p2pModal.offerQrWrapper, this.p2pModal.offerQrCanvas, null);
+    }
+    if (!this.p2pModal.answerCode.value) {
+      void this.renderQrPreview(this.p2pModal.answerQrWrapper, this.p2pModal.answerQrCanvas, null);
+    }
     showModal(this.p2pModal.modal);
   }
 
   private updateP2PStatus(state: string): void {
-    // Update status text
     const statusColors: Record<string, string> = {
       disconnected: '#f1f5f9',
       connecting: '#fef3c7',
@@ -1077,12 +1351,16 @@ export class MasteryApp {
       statusBadge.style.background = statusColors[state] || '#f1f5f9';
     }
 
-    // Show/hide appropriate views
     this.p2pModal.disconnectedView.style.display = state === 'disconnected' ? 'block' : 'none';
     this.p2pModal.connectedView.style.display = state === 'connected' ? 'block' : 'none';
 
     if (state === 'failed') {
       this.p2pModal.disconnectedView.style.display = 'block';
+    }
+
+    if (state === 'connected') {
+      void this.stopOfferScan();
+      void this.stopAnswerScan();
     }
   }
 
@@ -1090,16 +1368,23 @@ export class MasteryApp {
     try {
       const offerCode = await webrtcManager.createOffer();
       this.p2pModal.offerCode.value = offerCode;
+      await this.renderQrPreview(this.p2pModal.offerQrWrapper, this.p2pModal.offerQrCanvas, offerCode);
       this.p2pModal.disconnectedView.style.display = 'none';
       this.p2pModal.initiatorView.style.display = 'block';
+      this.p2pModal.responderView.style.display = 'none';
+      await this.stopOfferScan();
+      await this.stopAnswerScan();
     } catch (error) {
       alert(`Failed to create offer: ${error}`);
+      await this.renderQrPreview(this.p2pModal.offerQrWrapper, this.p2pModal.offerQrCanvas, null);
     }
   }
 
   private showP2PResponder(): void {
     this.p2pModal.disconnectedView.style.display = 'none';
     this.p2pModal.responderView.style.display = 'block';
+    this.p2pModal.initiatorView.style.display = 'none';
+    void this.renderQrPreview(this.p2pModal.offerQrWrapper, this.p2pModal.offerQrCanvas, null);
   }
 
   private async completeP2PConnection(): Promise<void> {
@@ -1112,6 +1397,7 @@ export class MasteryApp {
     try {
       await webrtcManager.applyAnswer(answerCode);
       this.p2pModal.initiatorView.style.display = 'none';
+      await this.stopAnswerScan();
     } catch (error) {
       alert(`Failed to complete connection: ${error}`);
     }
@@ -1128,8 +1414,11 @@ export class MasteryApp {
       const answerCode = await webrtcManager.createAnswer(offerCode);
       this.p2pModal.answerCode.value = answerCode;
       this.p2pModal.answerDisplay.style.display = 'block';
+      await this.renderQrPreview(this.p2pModal.answerQrWrapper, this.p2pModal.answerQrCanvas, answerCode);
+      await this.stopOfferScan();
     } catch (error) {
       alert(`Failed to create answer: ${error}`);
+      await this.renderQrPreview(this.p2pModal.answerQrWrapper, this.p2pModal.answerQrCanvas, null);
     }
   }
 
@@ -1203,6 +1492,10 @@ export class MasteryApp {
     this.p2pModal.answerInput.value = '';
     this.p2pModal.offerInput.value = '';
     this.p2pModal.answerCode.value = '';
+    void this.renderQrPreview(this.p2pModal.offerQrWrapper, this.p2pModal.offerQrCanvas, null);
+    void this.renderQrPreview(this.p2pModal.answerQrWrapper, this.p2pModal.answerQrCanvas, null);
+    void this.stopOfferScan();
+    void this.stopAnswerScan();
   }
 
   private copyToClipboard(text: string): void {
